@@ -1,0 +1,12 @@
+{
+  "name": "盯盘情绪记录",
+  "short_name": "盯盘情绪",
+  "description": "盘中盯盘情绪快速记录（离线可用，回家同步）",
+  "start_url": "/m",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f1420",
+  "theme_color": "#0f1420",
+  "icons": []
+}
