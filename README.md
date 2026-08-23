@@ -9,6 +9,7 @@ A股盯盘情绪记录 + 交易记录工具。数据全部存 **Supabase 云端*
 ## 架构
 - **前端**：纯静态（Vue 3 + Supabase JS，均本地打包，不依赖 CDN），由 GitHub Pages 托管。
 - **数据库**：Supabase Postgres，表：`mood_log`（盯盘情绪）、`trades`（交易记录）、`daily_records`（每日复盘）、`verify_conditions`（验证条件）。
+- **截图存储**：Supabase Storage 公开 bucket `trade-shots`，交易买卖点截图直传云端（匿名可写、公开可读），字段 `shot_min`/`shot_k` 存完整公开 URL。
 - **本地服务（可选兜底）**：`backend/server.py` 是 Mac 本地 Flask 服务，仅在本地局域网（`http://<IP>:8765`）使用；云端页面优先走 Supabase，本地服务不可用也不影响。
 
 ## 仓库结构
