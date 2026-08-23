@@ -181,6 +181,36 @@
     </div>
   </div>
   <div class="card">
+    <h2><span class="tag" style="background:var(--green-l);color:var(--green)">盘面结构</span></h2>
+    <div class="frm">
+      <div class="row2">
+        <div>
+          <label><b>强势指数</b> （逗号分隔，如 创业板, 北证50）</label>
+          <input type="text" v-model="strongIndex" placeholder="今天领涨/最强的指数">
+        </div>
+        <div>
+          <label><b>指数共振与否</b></label>
+          <div class="seg">
+            <span :class="['seg-opt', indexResonance==='共振' ? 'on' : '']" @click="indexResonance='共振'">共振</span>
+            <span :class="['seg-opt', indexResonance==='部分共振' ? 'on' : '']" @click="indexResonance='部分共振'">部分共振</span>
+            <span :class="['seg-opt', indexResonance==='不共振' ? 'on' : '']" @click="indexResonance='不共振'">不共振</span>
+          </div>
+        </div>
+      </div>
+      <div class="sector-rows">
+        <label class="sr-label"><b>强势板块 ↔ 对应龙头股</b>
+          <span class="muted" style="font-weight:400">（可动态增删）</span></label>
+        <div class="sector-row" v-for="(r, i) in sectorRows" :key="i">
+          <input type="text" v-model="r.sector" placeholder="板块，如 半导体">
+          <span class="arrow">→</span>
+          <input type="text" v-model="r.leading" placeholder="龙头股，如 中芯国际">
+          <button class="mini-del" v-if="sectorRows.length > 1" @click="removeSectorRow(i)" title="删除此行">✕</button>
+        </div>
+        <button class="add-row" @click="addSectorRow">＋ 添加板块</button>
+      </div>
+    </div>
+  </div>
+  <div class="card">
     <h2><span class="tag" style="background:var(--amber-l);color:var(--amber)">当日小结</span></h2>
     <div class="frm">
       <div class="row3">
@@ -210,33 +240,6 @@
           <label>做错了什么</label>
           <textarea v-model="mistake" rows="2"></textarea>
         </div>
-      </div>
-      <hr class="frm-sep">
-      <h3 class="frm-sub">盘面结构</h3>
-      <div class="row2">
-        <div>
-          <label><b>强势指数</b> （逗号分隔，如 创业板, 北证50）</label>
-          <input type="text" v-model="strongIndex" placeholder="今天领涨/最强的指数">
-        </div>
-        <div>
-          <label><b>指数共振与否</b></label>
-          <div class="seg">
-            <span :class="['seg-opt', indexResonance==='共振' ? 'on' : '']" @click="indexResonance='共振'">共振</span>
-            <span :class="['seg-opt', indexResonance==='部分共振' ? 'on' : '']" @click="indexResonance='部分共振'">部分共振</span>
-            <span :class="['seg-opt', indexResonance==='不共振' ? 'on' : '']" @click="indexResonance='不共振'">不共振</span>
-          </div>
-        </div>
-      </div>
-      <div class="sector-rows">
-        <label class="sr-label"><b>强势板块 ↔ 对应龙头股</b>
-          <span class="muted" style="font-weight:400">（可动态增删）</span></label>
-        <div class="sector-row" v-for="(r, i) in sectorRows" :key="i">
-          <input type="text" v-model="r.sector" placeholder="板块，如 半导体">
-          <span class="arrow">→</span>
-          <input type="text" v-model="r.leading" placeholder="龙头股，如 中芯国际">
-          <button class="mini-del" v-if="sectorRows.length > 1" @click="removeSectorRow(i)" title="删除此行">✕</button>
-        </div>
-        <button class="add-row" @click="addSectorRow">＋ 添加板块</button>
       </div>
       <div style="display:flex;gap:10px;align-items:center">
         <button class="primary" @click="saveDay">保存当日复盘</button>
