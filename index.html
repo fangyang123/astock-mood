@@ -1253,8 +1253,106 @@ createApp({
       } catch(e) { this.trades = []; this.sectors = []; }
     },
 
-    /* ---------- 胜率统计 ---------- */
-    async loadStats() { this.stats = await (await fetch("/api/stats")).json(); },
+    /* ---------- 胜率统计（纯前端，基于 Supabase 数据复刻后端 trade_stats） ---------- */
+    bucketHoldDays(d1, d2) {
+      let days = 0;
+      try {
+        const t1 = new Date(d1), t2 = new Date(d2);
+        days = Math.round((t2 - t1) / 86400000);
+      } catch (e) { return "未知"; }
+      if (days <= 0) return "当日";
+      if (days <= 3) return "1-3天";
+      if (days <= 7) return "4-7天";
+      if (days <= 15) return "8-15天";
+      return ">15天";
+    },
+    groupStats(closed, keyFn) {
+      const groups = {};
+      closed.forEach(t => {
+        const k = keyFn(t) || "未填";
+        (groups[k] = groups[k] || []).push(t);
+      });
+      const out = Object.keys(groups).map(k => {
+        const ts = groups[k];
+        const wins = ts.filter(t => t.pnl > 0);
+        const winPnls = wins.map(t => t.pnl);
+        const lossPnls = ts.filter(t => t.pnl <= 0).map(t => Math.abs(t.pnl));
+        return {
+          group: k, count: ts.length,
+          win_count: wins.length,
+          win_rate: Math.round(wins.length / ts.length * 1000) / 10,
+          total_pnl: Math.round(ts.reduce((s, t) => s + t.pnl, 0)),
+          avg_pnl_pct: Math.round(ts.reduce((s, t) => s + (t.pnl_pct || 0), 0) / ts.length * 100) / 100,
+          avg_win: winPnls.length ? Math.round(winPnls.reduce((s, v) => s + v, 0) / winPnls.length) : 0,
+          avg_loss: lossPnls.length ? Math.round(lossPnls.reduce((s, v) => s + v, 0) / lossPnls.length) : 0,
+        };
+      });
+      return out.sort((a, b) => b.total_pnl - a.total_pnl);
+    },
+    computeStats(trades) {
+      const closed = trades.filter(t => t.status === "closed" && t.pnl != null)
+        .sort((a, b) => (a.close_date || a.open_date).localeCompare(b.close_date || b.open_date));
+      let overall = { count: 0 };
+      if (closed.length) {
+        const wins = closed.filter(t => t.pnl > 0);
+        const winPnls = wins.map(t => t.pnl);
+        const lossPnls = closed.filter(t => t.pnl <= 0).map(t => Math.abs(t.pnl));
+        let maxLossStreak = 0, maxWinStreak = 0, cl = 0, cw = 0;
+        closed.forEach(t => {
+          if (t.pnl <= 0) { cl++; cw = 0; } else { cw++; cl = 0; }
+          maxLossStreak = Math.max(maxLossStreak, cl);
+          maxWinStreak = Math.max(maxWinStreak, cw);
+        });
+        const avgWin = winPnls.length ? winPnls.reduce((s, v) => s + v, 0) / winPnls.length : 0;
+        const avgLoss = lossPnls.length ? lossPnls.reduce((s, v) => s + v, 0) / lossPnls.length : 0;
+        overall = {
+          count: closed.length,
+          win_count: wins.length,
+          win_rate: Math.round(wins.length / closed.length * 1000) / 10,
+          total_pnl: Math.round(closed.reduce((s, t) => s + t.pnl, 0)),
+          avg_pnl_pct: Math.round(closed.reduce((s, t) => s + (t.pnl_pct || 0), 0) / closed.length * 100) / 100,
+          avg_win: Math.round(avgWin),
+          avg_loss: Math.round(avgLoss),
+          profit_ratio: avgLoss ? Math.round(avgWin / avgLoss * 100) / 100 : null,
+          expectancy: Math.round(closed.reduce((s, t) => s + t.pnl, 0) / closed.length),
+          max_loss_streak: maxLossStreak,
+          max_win_streak: maxWinStreak,
+        };
+      }
+      const monthly = {};
+      closed.forEach(t => {
+        const m = (t.close_date || t.open_date || "").slice(0, 7);
+        const d = monthly[m] = monthly[m] || { count: 0, win_count: 0, pnl: 0 };
+        d.count++; if (t.pnl > 0) d.win_count++;
+        d.pnl += t.pnl;
+      });
+      return {
+        overall,
+        open_count: trades.filter(t => t.status === "open").length,
+        by_strategy: this.groupStats(closed, t => t.strategy),
+        by_sector: this.groupStats(closed, t => t.sector),
+        by_cycle: this.groupStats(closed, t => t.cycle_phase),
+        by_emotion: this.groupStats(closed, t => t.emotion),
+        by_close_emotion: this.groupStats(closed, t => t.close_emotion),
+        by_hold: this.groupStats(closed, t => this.bucketHoldDays(t.open_date, t.close_date || t.open_date)),
+        by_close_reason: this.groupStats(closed, t => t.close_reason),
+        monthly: Object.keys(monthly).sort().reverse().map(m => ({
+          month: m, count: monthly[m].count, win_count: monthly[m].win_count,
+          winRate: Math.round(monthly[m].win_count / monthly[m].count * 100),
+          pnl: Math.round(monthly[m].pnl),
+        })),
+      };
+    },
+    async loadStats() {
+      if (SB) {
+        try {
+          const res = await SB.from("trades").select("*").order("id", { ascending:false }).limit(2000);
+          if (!res.error) { this.stats = this.computeStats(res.data || []); this.sectors = [...new Set((res.data||[]).map(t => t.sector).filter(Boolean))]; return; }
+        } catch (e) {}
+      }
+      // 兜底：本地服务
+      try { this.stats = await (await fetch("/api/stats")).json(); } catch (e) { this.stats = null; }
+    },
 
     /* ---------- 启动 ---------- */
     onDateChange() { if (this.date) this.loadDay(this.date); },
@@ -1268,20 +1366,20 @@ createApp({
         const u = r.headers.get("X-Lan-Url");
         if (u) this.lanUrl = u;
       } catch (e) { this.lanUrl = "获取失败"; }
-      // 本地辅助功能（股票联想/统计/二维码）：有本地服务才用
+      // 云端数据：每日复盘 / 交易记录 / 盯盘情绪 / 胜率统计，始终加载（纯前端，无需本地后端）
+      await this.loadDays();
+      await this.loadDay(this.date);
+      await this.loadTrades();
+      await this.loadStats();   // 基于 Supabase trades 前端计算，线上 GitHub Pages 也能用
+      await this.loadMoods();
+      // 本地辅助功能（股票联想/二维码）：仅在有本地服务时启用；无本地服务则优雅降级
       try {
         await (await fetch("/api/health")).json();
         this.apiStatus = "本地服务正常"; this.apiOk = true;
         await this.loadStocks();
-        await this.loadStats();
       } catch (e) {
         this.apiStatus = SB ? "云端模式（无本地服务）" : "离线";
       }
-      // 云端数据：每日复盘 / 交易记录 / 盯盘情绪，始终加载
-      await this.loadDays();
-      await this.loadDay(this.date);
-      await this.loadTrades();
-      await this.loadMoods();
       this.moodForm.ts = this.nowDtLocal();
     },
   },
