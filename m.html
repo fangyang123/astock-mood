@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="盯盘情绪">
+<link rel="manifest" href="/static/manifest.webmanifest">
+<title>盯盘情绪 · 快速记录</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/static/supabase_config.js"></script>
+<style>
+  :root{
+    --bg:#f5f7fa; --card:#ffffff; --line:#e2e8f0; --txt:#1a2233; --muted:#6b7790;
+    --accent:#2f6bff; --danger:#e23b3b; --ok:#1fae7a;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0; padding:0; background:var(--bg); color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;
+    font-size:16px; line-height:1.4; padding-bottom:env(safe-area-inset-bottom);}
+  .wrap{max-width:560px; margin:0 auto; padding:14px 14px 40px;}
+  h1{font-size:19px; margin:6px 0 2px;}
+  .sub{color:var(--muted); font-size:13px; margin-bottom:10px;}
+
+  /* 同步状态条 */
+  .syncbar{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px;}
+  .pill{background:var(--card); border:1px solid var(--line); border-radius:999px;
+    padding:6px 11px; font-size:13px; color:var(--muted);}
+  .pill b{color:var(--txt); font-size:15px;}
+  .pill.on{border-color:var(--ok); color:var(--ok);}
+  .pill.off{border-color:var(--danger); color:var(--danger);}
+  .pill.warn{border-color:#e0a000; color:#a97900;}
+  .mini{background:#eef2f8; color:var(--txt); border:1px solid var(--line);
+    border-radius:999px; padding:7px 13px; font-size:13px;}
+  .mini:active{background:var(--accent); border-color:var(--accent); color:#fff;}
+
+  .card{background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:14px; margin-bottom:14px;}
+  label{display:block; font-size:13px; color:var(--muted); margin:0 0 7px;}
+  .chips{display:flex; flex-wrap:wrap; gap:8px;}
+  .chip{padding:10px 13px; border-radius:999px; border:1px solid var(--line);
+    background:#eef2f8; font-size:15px; min-width:64px; text-align:center;}
+  .chip.on{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600;}
+  .row{display:flex; gap:10px; margin-bottom:14px;}
+  .row>div{flex:1;}
+  input[type=number],input[type=datetime-local],input[type=text],select,textarea{
+    width:100%; background:#ffffff; color:var(--txt); border:1px solid var(--line);
+    border-radius:10px; padding:12px; font-size:16px;}
+  textarea{resize:vertical; min-height:120px;}
+  input[type=datetime-local]{color-scheme:light;}
+  .range-row{display:flex; align-items:center; gap:12px;}
+  input[type=range]{flex:1; height:32px; accent-color:var(--accent);}
+  .score{font-size:22px; font-weight:700; color:var(--accent); min-width:30px; text-align:center;}
+  .seg{display:flex; border:1px solid var(--line); border-radius:10px; overflow:hidden;}
+  .seg button{flex:1; background:#eef2f8; color:var(--txt); border:0; padding:13px; font-size:15px;}
+  .seg button.on{background:var(--ok); color:#06231a; font-weight:700;}
+  .seg button.on.bad{background:var(--danger); color:#2a0606;}
+  .submit{width:100%; background:var(--accent); color:#fff; border:0; border-radius:14px;
+    padding:17px; font-size:18px; font-weight:700; margin-top:4px;}
+  .msg{text-align:center; font-size:15px; margin-top:10px; min-height:20px;}
+  .msg.ok{color:var(--ok);} .msg.err{color:var(--danger);} .msg.info{color:var(--muted);}
+  .recent{margin-top:8px;}
+  h2{font-size:15px; margin:4px 0 10px; color:var(--muted);}
+  .item{background:#fbfcfe; border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-bottom:8px;}
+  .item .top{display:flex; justify-content:space-between; align-items:center; gap:8px;}
+  .item .em{font-weight:600;}
+  .item .meta{font-size:12px; color:var(--muted); margin-top:3px;}
+  .item .good{color:var(--ok); font-size:12px;}
+  .item .bad{color:var(--danger); font-size:12px;}
+  .foot{text-align:center; margin-top:18px; font-size:13px;}
+  .foot a{color:var(--accent); text-decoration:none;}
+  .cloudtag{font-size:11px; color:var(--ok);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>盯盘情绪 · 快速记录</h1>
+  <div class="sub">盘中随手记，先看见自己的心态 <span class="cloudtag">· 云端实时同步</span></div>
+
+  <div class="syncbar">
+    <span id="netStatus" class="pill">连接中…</span>
+    <span class="pill">云端 <b id="cloudCount">-</b> 条</span>
+    <button id="refreshBtn" class="mini">刷新</button>
+    <button id="exportBtn" class="mini">导出备份</button>
+  </div>
+
+  <div id="cloudWarn" class="card" style="display:none; background:#fff4f4;border-color:#ffb4b4;">
+    <div style="font-size:14px;color:#c0392b;font-weight:700;">⚠️ 无法连接云端</div>
+    <div class="hint" style="color:#a23;margin-top:6px;" id="cloudWarnMsg"></div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div>
+        <label>时间</label>
+        <input type="datetime-local" id="ts" step="60">
+      </div>
+    </div>
+
+    <label>情绪</label>
+    <div class="chips" id="emotions"></div>
+
+    <div class="row" style="margin-top:14px;">
+      <div>
+        <label>强度 1–5</label>
+        <div class="range-row">
+          <input type="range" id="intensity" min="1" max="5" value="3">
+          <span class="score" id="intensityVal">3</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>当时仓位 %</label>
+        <input type="number" id="position_pct" min="0" max="100" placeholder="选填 0-100">
+      </div>
+      <div>
+        <label>持仓浮盈浮亏 %</label>
+        <input type="number" id="pnl_pct" step="0.1" placeholder="选填 如 -3.5">
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>触发</label>
+        <select id="trigger"></select>
+      </div>
+      <div>
+        <label>冲动</label>
+        <select id="urge"></select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>原计划动作</label>
+        <select id="plan"></select>
+      </div>
+    </div>
+
+    <label>是否按情绪操作了</label>
+    <div class="seg" style="margin-bottom:14px;">
+      <button id="actedTrue" type="button">是（追/割了）</button>
+      <button id="actedFalse" class="on" type="button">否（忍住了）</button>
+    </div>
+
+    <label>备注（实际做了什么 / 上下文）</label>
+    <textarea id="note" rows="4" placeholder="选填"></textarea>
+
+    <button class="submit" id="saveBtn">保存这条情绪</button>
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <div class="recent">
+    <h2>全部记录（云端）</h2>
+    <div id="recentList"></div>
+  </div>
+
+  <div class="foot"><a href="/">打开完整复盘系统 →</a></div>
+</div>
+
+<input id="importFile" type="file" accept="application/json" style="display:none;">
+
+<script>
+  var EMOTIONS = ["冷静","犹豫","恐踏空","贪婪","恐慌","后悔","兴奋","麻木"];
+  var TRIGGERS = ["","大盘拉升","大盘跳水","持仓拉升","持仓跳水","横盘无聊","看到利好消息","看到利空消息","空仓焦虑","其他"];
+  var URGES    = ["","想买","想加仓","想卖","想割肉","想观望"];
+  var PLANS    = ["","持有","加仓","减仓","清仓","开新仓","空仓等待","其他"];
+
+  // ---------- Supabase 客户端 ----------
+  var sb = null;
+  try {
+    sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
+  } catch(e){ sb = null; }
+
+  var state = { emotion:"", acted:false };
+  var rows = [];   // 云端返回的数组
+
+  function nowLocal(){
+    var d = new Date();
+    function p(n){ return (n<10?"0":"")+n; }
+    return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+"T"+p(d.getHours())+":"+p(d.getMinutes());
+  }
+  function todayKey(){
+    var d = new Date();
+    function p(n){ return (n<10?"0":"")+n; }
+    return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());
+  }
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+
+  function setMsg(text, cls){
+    var m = document.getElementById("msg");
+    m.textContent = text; m.className = "msg " + (cls||"");
+  }
+  function setStatus(kind, text){
+    var el = document.getElementById("netStatus");
+    el.textContent = text || "—";
+    el.className = "pill" + (kind==="on" ? " on" : kind==="off" ? " off" : kind==="warn" ? " warn" : "");
+  }
+
+  function buildChips(){
+    var box = document.getElementById("emotions");
+    EMOTIONS.forEach(function(e){
+      var s = document.createElement("span");
+      s.className = "chip"; s.textContent = e;
+      s.onclick = function(){
+        state.emotion = e;
+        Array.prototype.forEach.call(box.children, function(c){ c.className = "chip"; });
+        s.className = "chip on";
+      };
+      box.appendChild(s);
+    });
+  }
+  function fillSelect(id, arr){
+    var sel = document.getElementById(id);
+    arr.forEach(function(v){
+      var o = document.createElement("option");
+      o.value = v; o.textContent = v === "" ? "—" : v;
+      sel.appendChild(o);
+    });
+  }
+
+  // ---------- 云端读取 ----------
+  function loadCloud(){
+    if(!sb){ setStatus("off","未连接云端"); showCloudWarn("Supabase 客户端未加载，请检查网络后刷新页面。"); return Promise.resolve(); }
+    setStatus("warn","读取中…");
+    return sb.from("mood_log").select("*").order("ts", { ascending:false }).limit(2000)
+      .then(function(res){
+        if(res.error){ setStatus("off","云端读取失败"); showCloudWarn("读取失败：" + res.error.message); return; }
+        rows = res.data || [];
+        document.getElementById("cloudCount").textContent = rows.length;
+        setStatus("on","云端已连接 ✓");
+        hideCloudWarn();
+        render();
+      })
+      .catch(function(err){
+        setStatus("off","无法连接云端");
+        showCloudWarn("无法连接：" + (err && err.message ? err.message : err) + "。检查网络后点「刷新」。");
+      });
+  }
+
+  function showCloudWarn(t){
+    document.getElementById("cloudWarn").style.display = "block";
+    document.getElementById("cloudWarnMsg").textContent = t;
+  }
+  function hideCloudWarn(){ document.getElementById("cloudWarn").style.display = "none"; }
+
+  // ---------- 渲染 ----------
+  function render(){
+    var rl = document.getElementById("recentList");
+    rl.innerHTML = "";
+    rows.forEach(function(m){
+      var div = document.createElement("div");
+      div.className = "item";
+      var actedCls = m.acted ? "bad" : "good";
+      var actedTxt = m.acted ? "按情绪操作" : "忍住未动";
+      var meta = [];
+      if(m.trigger) meta.push("触发:"+m.trigger);
+      if(m.urge) meta.push("冲动:"+m.urge);
+      if(m.position_pct!=null) meta.push("仓"+m.position_pct+"%");
+      if(m.pnl_pct!=null) meta.push("浮"+(m.pnl_pct>0?"+":"")+m.pnl_pct+"%");
+      div.innerHTML = '<div class="top"><span class="em">'+esc(m.emotion||"")+
+        ' <span class="'+actedCls+'">'+actedTxt+'</span></span>'+
+        '<span class="meta">'+(m.ts||"")+'</span></div>'+
+        (meta.length?'<div class="meta">'+esc(meta.join(" · "))+'</div>':'');
+      rl.appendChild(div);
+    });
+  }
+
+  // ---------- 保存（直接写云端） ----------
+  function save(){
+    var ts = document.getElementById("ts").value;
+    if(!ts){ setMsg("请填写时间", "err"); return; }
+    if(!state.emotion){ setMsg("请选一个情绪", "err"); return; }
+    var payload = {
+      ts: ts,
+      date: (ts||"").slice(0,10),
+      emotion: state.emotion,
+      intensity: Number(document.getElementById("intensity").value) || 0,
+      trigger: document.getElementById("trigger").value || "",
+      urge: document.getElementById("urge").value || "",
+      position_pct: (document.getElementById("position_pct").value === "") ? null : Number(document.getElementById("position_pct").value),
+      pnl_pct: (document.getElementById("pnl_pct").value === "") ? null : Number(document.getElementById("pnl_pct").value),
+      plan: document.getElementById("plan").value || "",
+      acted: state.acted ? 1 : 0,
+      note: (document.getElementById("note").value || "").trim(),
+      local_id: Date.now().toString(36) + Math.random().toString(36).slice(2,8)
+    };
+
+    if(!sb){
+      setMsg("未连接云端，无法保存。请刷新页面重试。", "err");
+      return;
+    }
+    setMsg("保存中…", "info");
+    sb.from("mood_log").insert(payload).then(function(res){
+      if(res.error){ setMsg("保存失败：" + res.error.message, "err"); return; }
+      setMsg("已保存到云端 ✓", "ok");
+      resetForm();
+      loadCloud();   // 重新拉取最新列表
+    }).catch(function(err){
+      setMsg("保存失败：" + (err && err.message ? err.message : err), "err");
+    });
+  }
+
+  function resetForm(){
+    state.emotion = "";
+    Array.prototype.forEach.call(document.getElementById("emotions").children, function(c){ c.className = "chip"; });
+    document.getElementById("intensity").value = 3;
+    document.getElementById("intensityVal").textContent = 3;
+    document.getElementById("position_pct").value = "";
+    document.getElementById("pnl_pct").value = "";
+    document.getElementById("trigger").value = "";
+    document.getElementById("urge").value = "";
+    document.getElementById("plan").value = "";
+    document.getElementById("actedTrue").className = "";
+    document.getElementById("actedFalse").className = "on";
+    state.acted = false;
+    document.getElementById("note").value = "";
+    document.getElementById("ts").value = nowLocal();
+  }
+
+  // ---------- 导出备份（本地 JSON，手动兜底） ----------
+  function exportJSON(){
+    if(!rows.length){ setMsg("云端还没有记录可导出", "info"); return; }
+    var blob = new Blob([JSON.stringify(rows, null, 2)], { type:"application/json" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "mood-backup-" + todayKey() + ".json";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setMsg("已导出 " + rows.length + " 条（云端备份）", "info");
+  }
+
+  // ---------- 初始化 ----------
+  document.addEventListener("DOMContentLoaded", function(){
+    document.getElementById("ts").value = nowLocal();
+    buildChips();
+    fillSelect("trigger", TRIGGERS);
+    fillSelect("urge", URGES);
+    fillSelect("plan", PLANS);
+    document.getElementById("intensity").oninput = function(){ document.getElementById("intensityVal").textContent = this.value; };
+    document.getElementById("actedTrue").onclick = function(){ state.acted = true; this.className="on"; document.getElementById("actedFalse").className=""; };
+    document.getElementById("actedFalse").onclick = function(){ state.acted = false; this.className="on"; document.getElementById("actedTrue").className=""; };
+
+    document.getElementById("saveBtn").onclick = save;
+    document.getElementById("refreshBtn").onclick = function(){ loadCloud(); };
+    document.getElementById("exportBtn").onclick = exportJSON;
+
+    loadCloud();
+
+    // 注册 Service Worker（离线打开页面外壳；数据本身依赖云端）
+    if("serviceWorker" in navigator){
+      navigator.serviceWorker.register("/sw.js").catch(function(){});
+    }
+  });
+</script>
+</body>
+</html>
