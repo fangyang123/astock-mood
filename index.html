@@ -1019,14 +1019,33 @@ createApp({
       if (!t.name || !t.openDate || !(t.openPrice > 0) || !(t.shares > 0)) {
         this.tradeMsg = "名称、日期、开仓价、股数必填"; return;
       }
+      const now = new Date().toISOString();
+      const body = {
+        stock_name:t.name, stock_code:t.code, sector:t.sector, open_date:t.openDate,
+        open_price:Number(t.openPrice), shares:Number(t.shares),
+        position_pct:(t.position === "" || t.position == null) ? null : Number(t.position),
+        strategy:t.strategy, emotion:t.emotion, open_reason:t.reason,
+        status:"open", created_at:now, updated_at:now,
+        local_id: Date.now().toString(36) + Math.random().toString(36).slice(2,8),
+      };
+      if (SB) {
+        const res = await SB.from("trades").insert(body).select();
+        if (!res.error) {
+          const created = (res.data && res.data[0]) || { id:null };
+          if (this.openShotMin) await this.postShot(created.id, "min", this.openShotMin);
+          if (this.openShotK)  await this.postShot(created.id, "k", this.openShotK);
+          this.tradeForm = { name:"", code:"", sector:"", openDate:this.today, openPrice:"",
+                             shares:"", position:"", strategy:"打板", emotion:"", reason:"" };
+          this.openShotMin = null; this.openShotK = null;
+          this.tradeMsg = "已记录开仓（云端）";
+          await this.loadTrades();
+          return;
+        }
+        this.tradeMsg = "云端保存失败：" + res.error.message; return;
+      }
+      // 兜底：本地服务
       const r = await fetch("/api/trades", {
-        method:"POST", headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({
-          stock_name:t.name, stock_code:t.code, sector:t.sector, open_date:t.openDate,
-          open_price:Number(t.openPrice), shares:Number(t.shares),
-          position_pct:(t.position === "" || t.position == null) ? null : Number(t.position),
-          strategy:t.strategy, emotion:t.emotion, open_reason:t.reason,
-        }),
+        method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(body),
       });
       if (r.ok) {
         const created = await r.json();
@@ -1035,7 +1054,7 @@ createApp({
         this.tradeForm = { name:"", code:"", sector:"", openDate:this.today, openPrice:"",
                            shares:"", position:"", strategy:"打板", emotion:"", reason:"" };
         this.openShotMin = null; this.openShotK = null;
-        this.tradeMsg = (this.openShotMin || this.openShotK) ? "已记录开仓（含截图）" : "已记录开仓";
+        this.tradeMsg = "已记录开仓（本地）";
         await this.loadTrades();
       } else { this.tradeMsg = "保存失败：" + await r.text(); }
     },
@@ -1046,20 +1065,39 @@ createApp({
     async doClose() {
       const c = this.modal.close;
       if (!c.date || !(c.price > 0)) { alert("平仓日期和价格必填"); return; }
+      const body = { close_date:c.date, close_price:Number(c.price),
+        close_reason:c.reason, close_summary:c.summary.trim(), close_emotion:c.emotion,
+        status:"closed", updated_at:new Date().toISOString() };
+      if (SB) {
+        const res = await SB.from("trades").update(body).eq("id", c.tid);
+        if (!res.error) { this.modal.close.show = false; this.loadTrades(); return; }
+        alert("云端平仓失败：" + res.error.message); return;
+      }
       const r = await fetch(`/api/trades/${c.tid}/close`, {
-        method:"POST", headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ close_date:c.date, close_price:Number(c.price),
-          close_reason:c.reason, close_summary:c.summary.trim(), close_emotion:c.emotion }),
+        method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(body),
       });
       if (r.ok) { this.modal.close.show = false; this.loadTrades(); }
     },
     openDelTrade(tid) { this.modal.delTrade = { show:true, tid }; },
     async confirmDelTrade() {
-      await fetch(`/api/trades/${this.modal.delTrade.tid}`, { method:"DELETE" });
+      const tid = this.modal.delTrade.tid;
+      if (SB) {
+        const res = await SB.from("trades").delete().eq("id", tid);
+        if (!res.error) { this.modal.delTrade.show = false; this.loadTrades(); return; }
+      }
+      await fetch(`/api/trades/${tid}`, { method:"DELETE" });
       this.modal.delTrade.show = false; this.loadTrades();
     },
     reopen(tid) { this.pending = { tid, kind:"" }; this.askConfirm("撤销平仓", "重新变为持仓中？", "reopen"); },
-    async doReopen() { await fetch(`/api/trades/${this.pending.tid}/reopen`, { method:"POST" }); this.loadTrades(); },
+    async doReopen() {
+      const tid = this.pending.tid;
+      if (SB) {
+        const res = await SB.from("trades").update({ status:"open", close_date:null, close_price:null, updated_at:new Date().toISOString() }).eq("id", tid);
+        if (!res.error) { this.loadTrades(); this.modal.confirm.show = false; return; }
+      }
+      await fetch(`/api/trades/${tid}/reopen`, { method:"POST" });
+      this.loadTrades(); this.modal.confirm.show = false;
+    },
     openDetail(tid) { this.modal.detail.tid = tid; },
     closeDetail() { this.modal.detail.tid = null; },
     openShot(tid) { this.modal.shot = { tid, minFile:null, kFile:null }; },
@@ -1091,9 +1129,23 @@ createApp({
     lightbox(src) { this.lightboxSrc = src; },
 
     async loadTrades() {
-      const trades = await (await fetch("/api/trades")).json();
-      this.trades = trades;
-      this.sectors = [...new Set(trades.map(t => t.sector).filter(Boolean))];
+      if (SB) {
+        try {
+          const res = await SB.from("trades").select("*").order("id", { ascending:false }).limit(2000);
+          if (!res.error) {
+            const trades = res.data || [];
+            this.trades = trades;
+            this.sectors = [...new Set(trades.map(t => t.sector).filter(Boolean))];
+            return;
+          }
+        } catch(e) {}
+      }
+      // 兜底：本地服务
+      try {
+        const trades = await (await fetch("/api/trades")).json();
+        this.trades = trades;
+        this.sectors = [...new Set(trades.map(t => t.sector).filter(Boolean))];
+      } catch(e) { this.trades = []; this.sectors = []; }
     },
 
     /* ---------- 胜率统计 ---------- */
@@ -1111,16 +1163,21 @@ createApp({
         const u = r.headers.get("X-Lan-Url");
         if (u) this.lanUrl = u;
       } catch (e) { this.lanUrl = "获取失败"; }
+      // 今日复盘 / 股票 / 统计：优先本地服务，失败不影响云端数据
       try {
         await (await fetch("/api/health")).json();
-        this.apiStatus = "服务正常"; this.apiOk = true;
+        this.apiStatus = "本地服务正常"; this.apiOk = true;
         await this.loadStocks();
         await this.loadDay(this.date);
         await this.loadDays();
-        await this.loadTrades();
-        await this.loadMoods();
-        this.moodForm.ts = this.nowDtLocal();
-      } catch (e) { this.apiStatus = "API 连接失败"; }
+        await this.loadStats();
+      } catch (e) {
+        this.apiStatus = SB ? "云端模式（无本地服务）" : "离线";
+      }
+      // 交易记录 + 盯盘情绪：始终优先云端
+      await this.loadTrades();
+      await this.loadMoods();
+      this.moodForm.ts = this.nowDtLocal();
     },
   },
 
