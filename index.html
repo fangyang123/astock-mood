@@ -44,6 +44,9 @@
   .frm { display:grid; gap:14px; }
   .frm .row3 { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
   .frm .row2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .frm-sep { border:none; border-top:1px dashed var(--border); margin:4px 0; }
+  .frm-sub { font-size:14px; color:var(--blue); margin:2px 0 2px; font-weight:600; }
+  .sum-cell { max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); }
   /* 股票名称/代码 智能联想 */
   .ac { position:relative; }
   .ac-list { position:absolute; left:0; right:0; top:100%; margin-top:2px; z-index:50;
@@ -197,6 +200,36 @@
           <textarea v-model="mistake" rows="2"></textarea>
         </div>
       </div>
+      <hr class="frm-sep">
+      <h3 class="frm-sub">盘面结构</h3>
+      <div class="row3">
+        <div>
+          <label><b>强势指数</b> （逗号分隔，如 创业板, 北证50）</label>
+          <input type="text" v-model="strongIndex" placeholder="今天领涨/最强的指数">
+        </div>
+        <div>
+          <label><b>指数共振与否</b></label>
+          <div class="seg">
+            <span :class="['seg-opt', indexResonance==='共振' ? 'on' : '']" @click="indexResonance='共振'">共振</span>
+            <span :class="['seg-opt', indexResonance==='部分共振' ? 'on' : '']" @click="indexResonance='部分共振'">部分共振</span>
+            <span :class="['seg-opt', indexResonance==='不共振' ? 'on' : '']" @click="indexResonance='不共振'">不共振</span>
+          </div>
+        </div>
+        <div>
+          <label><b>强势板块</b> （逗号分隔）</label>
+          <input type="text" v-model="strongSectors" placeholder="如 半导体, 军工, 券商">
+        </div>
+      </div>
+      <div class="row2">
+        <div>
+          <label><b>对应龙头股</b> （逗号分隔，板块↔龙头）</label>
+          <input type="text" v-model="leadingStocks" placeholder="如 中芯国际, 长城军工, 东方财富">
+        </div>
+        <div>
+          <label><b>今天交易总结</b></label>
+          <textarea v-model="todaySummary" rows="3" placeholder="今日整体操作复盘、盈亏关键、明日计划"></textarea>
+        </div>
+      </div>
       <div style="display:flex;gap:10px;align-items:center">
         <button class="primary" @click="saveDay">保存当日复盘</button>
         <span :class="['muted', saveMsgCls]" v-if="saveMsg">{{ saveMsg }}</span>
@@ -206,13 +239,14 @@
   <div class="card">
     <h2><span class="tag" style="background:var(--blue-l);color:var(--blue)">历史</span> 点击回看某日</h2>
     <div class="tblwrap"><table>
-      <thead><tr><th>日期</th><th>周期</th><th>情绪</th><th>仓位</th><th>操作</th></tr></thead>
+      <thead><tr><th>日期</th><th>周期</th><th>情绪</th><th>仓位</th><th>交易总结</th><th>操作</th></tr></thead>
       <tbody>
         <tr v-for="d in days" :key="d.date" @click="loadDay(d.date)">
           <td>{{ d.date }}</td>
           <td>{{ d.cycle_phase || '—' }}</td>
           <td>{{ d.sentiment != null ? d.sentiment : '—' }}</td>
           <td>{{ d.position != null ? (d.position + '%') : '—' }}</td>
+          <td class="sum-cell">{{ d.today_summary ? (d.today_summary.length > 18 ? d.today_summary.slice(0,18)+'…' : d.today_summary) : '—' }}</td>
           <td><button class="danger" @click.stop="openDelDay(d.date)">删</button></td>
         </tr>
       </tbody>
@@ -669,6 +703,7 @@ createApp({
       activeTab: "daily",
       today: "", date: "",
       cyclePhase: "", sentiment: 50, position: "", note: "", review: "", mistake: "",
+      strongIndex: "", indexResonance: "", strongSectors: "", leadingStocks: "", todaySummary: "",
       saveMsg: "", saveMsgCls: "",
       days: [],
       tradeForm: { name:"", code:"", sector:"", openDate:"", openPrice:"", shares:"",
@@ -862,6 +897,11 @@ createApp({
       this.note    = m.note || "";
       this.review  = m.review || "";
       this.mistake = m.mistake || "";
+      this.strongIndex    = m.strong_index || "";
+      this.indexResonance = m.index_resonance || "";
+      this.strongSectors  = m.strong_sectors || "";
+      this.leadingStocks  = m.leading_stocks || "";
+      this.todaySummary   = m.today_summary || "";
       this.saveMsg = ""; this.saveMsgCls = "";
     },
     async saveDay() {
@@ -873,6 +913,11 @@ createApp({
         note: this.note.trim(),
         review: this.review.trim(),
         mistake: this.mistake.trim(),
+        strong_index: this.strongIndex.trim(),
+        index_resonance: this.indexResonance,
+        strong_sectors: this.strongSectors.trim(),
+        leading_stocks: this.leadingStocks.trim(),
+        today_summary: this.todaySummary.trim(),
       };
       if (!SB) { this.saveMsg = "未连接云端"; this.saveMsgCls = "err"; return; }
       const now = new Date().toISOString();
@@ -887,8 +932,18 @@ createApp({
     },
     async loadDays() {
       if (SB) {
-        const res = await SB.from("daily_records").select("date,updated_at").order("date", { ascending:false });
-        this.days = (res.data || []).map(d => ({ date:d.date, updated_at:d.updated_at }));
+        const res = await SB.from("daily_records").select("date,updated_at,manual_json").order("date", { ascending:false });
+        this.days = (res.data || []).map(d => {
+          let man = {};
+          try { man = d.manual_json ? JSON.parse(d.manual_json) : {}; } catch(e) {}
+          return {
+            date:d.date, updated_at:d.updated_at,
+            cycle_phase: man.cycle_phase || "",
+            sentiment: man.sentiment && man.sentiment.score != null ? man.sentiment.score : null,
+            position: man.position && man.position.total != null ? man.position.total : null,
+            today_summary: man.today_summary || "",
+          };
+        });
       }
     },
     openDelDay(date) { this.modal.delDay = { show:true, date }; },
