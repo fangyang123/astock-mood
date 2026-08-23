@@ -47,6 +47,17 @@
   .frm-sep { border:none; border-top:1px dashed var(--border); margin:4px 0; }
   .frm-sub { font-size:14px; color:var(--blue); margin:2px 0 2px; font-weight:600; }
   .sum-cell { max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); }
+  .sector-rows { display:grid; gap:8px; }
+  .sr-label { margin-bottom:2px; }
+  .sector-row { display:flex; gap:8px; align-items:center; }
+  .sector-row input { flex:1; }
+  .sector-row .arrow { color:var(--muted); font-size:13px; flex-shrink:0; }
+  .mini-del { flex-shrink:0; width:26px; height:26px; border:1px solid var(--border); background:#fff;
+              border-radius:6px; cursor:pointer; color:var(--red); font-size:12px; line-height:1; }
+  .mini-del:hover { background:var(--red-l); }
+  .add-row { justify-self:start; margin-top:2px; padding:5px 12px; border:1px dashed var(--blue);
+             background:#fff; color:var(--blue); border-radius:6px; cursor:pointer; font-size:13px; }
+  .add-row:hover { background:var(--blue-l); }
   /* 股票名称/代码 智能联想 */
   .ac { position:relative; }
   .ac-list { position:absolute; left:0; right:0; top:100%; margin-top:2px; z-index:50;
@@ -202,7 +213,7 @@
       </div>
       <hr class="frm-sep">
       <h3 class="frm-sub">盘面结构</h3>
-      <div class="row3">
+      <div class="row2">
         <div>
           <label><b>强势指数</b> （逗号分隔，如 创业板, 北证50）</label>
           <input type="text" v-model="strongIndex" placeholder="今天领涨/最强的指数">
@@ -215,20 +226,17 @@
             <span :class="['seg-opt', indexResonance==='不共振' ? 'on' : '']" @click="indexResonance='不共振'">不共振</span>
           </div>
         </div>
-        <div>
-          <label><b>强势板块</b> （逗号分隔）</label>
-          <input type="text" v-model="strongSectors" placeholder="如 半导体, 军工, 券商">
-        </div>
       </div>
-      <div class="row2">
-        <div>
-          <label><b>对应龙头股</b> （逗号分隔，板块↔龙头）</label>
-          <input type="text" v-model="leadingStocks" placeholder="如 中芯国际, 长城军工, 东方财富">
+      <div class="sector-rows">
+        <label class="sr-label"><b>强势板块 ↔ 对应龙头股</b>
+          <span class="muted" style="font-weight:400">（可动态增删）</span></label>
+        <div class="sector-row" v-for="(r, i) in sectorRows" :key="i">
+          <input type="text" v-model="r.sector" placeholder="板块，如 半导体">
+          <span class="arrow">→</span>
+          <input type="text" v-model="r.leading" placeholder="龙头股，如 中芯国际">
+          <button class="mini-del" v-if="sectorRows.length > 1" @click="removeSectorRow(i)" title="删除此行">✕</button>
         </div>
-        <div>
-          <label><b>今天交易总结</b></label>
-          <textarea v-model="todaySummary" rows="3" placeholder="今日整体操作复盘、盈亏关键、明日计划"></textarea>
-        </div>
+        <button class="add-row" @click="addSectorRow">＋ 添加板块</button>
       </div>
       <div style="display:flex;gap:10px;align-items:center">
         <button class="primary" @click="saveDay">保存当日复盘</button>
@@ -239,14 +247,14 @@
   <div class="card">
     <h2><span class="tag" style="background:var(--blue-l);color:var(--blue)">历史</span> 点击回看某日</h2>
     <div class="tblwrap"><table>
-      <thead><tr><th>日期</th><th>周期</th><th>情绪</th><th>仓位</th><th>交易总结</th><th>操作</th></tr></thead>
+      <thead><tr><th>日期</th><th>周期</th><th>情绪</th><th>仓位</th><th>强势板块</th><th>操作</th></tr></thead>
       <tbody>
         <tr v-for="d in days" :key="d.date" @click="loadDay(d.date)">
           <td>{{ d.date }}</td>
           <td>{{ d.cycle_phase || '—' }}</td>
           <td>{{ d.sentiment != null ? d.sentiment : '—' }}</td>
           <td>{{ d.position != null ? (d.position + '%') : '—' }}</td>
-          <td class="sum-cell">{{ d.today_summary ? (d.today_summary.length > 18 ? d.today_summary.slice(0,18)+'…' : d.today_summary) : '—' }}</td>
+          <td class="sum-cell">{{ d.sectors || '—' }}</td>
           <td><button class="danger" @click.stop="openDelDay(d.date)">删</button></td>
         </tr>
       </tbody>
@@ -703,7 +711,7 @@ createApp({
       activeTab: "daily",
       today: "", date: "",
       cyclePhase: "", sentiment: 50, position: "", note: "", review: "", mistake: "",
-      strongIndex: "", indexResonance: "", strongSectors: "", leadingStocks: "", todaySummary: "",
+      strongIndex: "", indexResonance: "", sectorRows: [{ sector:"", leading:"" }],
       saveMsg: "", saveMsgCls: "",
       days: [],
       tradeForm: { name:"", code:"", sector:"", openDate:"", openPrice:"", shares:"",
@@ -883,6 +891,8 @@ createApp({
 
     /* ---------- 每日复盘 ---------- */
     togglePhase(name) { this.cyclePhase = this.cyclePhase === name ? "" : name; },
+    addSectorRow() { this.sectorRows.push({ sector:"", leading:"" }); },
+    removeSectorRow(i) { if (this.sectorRows.length > 1) this.sectorRows.splice(i, 1); },
     async loadDay(date) {
       this.date = date;
       let day = null;
@@ -899,9 +909,9 @@ createApp({
       this.mistake = m.mistake || "";
       this.strongIndex    = m.strong_index || "";
       this.indexResonance = m.index_resonance || "";
-      this.strongSectors  = m.strong_sectors || "";
-      this.leadingStocks  = m.leading_stocks || "";
-      this.todaySummary   = m.today_summary || "";
+      this.sectorRows = (m.sector_rows && m.sector_rows.length)
+        ? m.sector_rows.map(r => ({ sector: r.sector || "", leading: r.leading || "" }))
+        : [{ sector:"", leading:"" }];
       this.saveMsg = ""; this.saveMsgCls = "";
     },
     async saveDay() {
@@ -915,9 +925,9 @@ createApp({
         mistake: this.mistake.trim(),
         strong_index: this.strongIndex.trim(),
         index_resonance: this.indexResonance,
-        strong_sectors: this.strongSectors.trim(),
-        leading_stocks: this.leadingStocks.trim(),
-        today_summary: this.todaySummary.trim(),
+        sector_rows: this.sectorRows
+          .filter(r => r.sector.trim() || r.leading.trim())
+          .map(r => ({ sector: r.sector.trim(), leading: r.leading.trim() })),
       };
       if (!SB) { this.saveMsg = "未连接云端"; this.saveMsgCls = "err"; return; }
       const now = new Date().toISOString();
@@ -941,7 +951,7 @@ createApp({
             cycle_phase: man.cycle_phase || "",
             sentiment: man.sentiment && man.sentiment.score != null ? man.sentiment.score : null,
             position: man.position && man.position.total != null ? man.position.total : null,
-            today_summary: man.today_summary || "",
+            sectors: (man.sector_rows || []).map(r => r.sector).filter(Boolean).join(",") || "",
           };
         });
       }
