@@ -932,16 +932,29 @@ createApp({
           .filter(r => r.sector.trim() || r.leading.trim())
           .map(r => ({ sector: r.sector.trim(), leading: r.leading.trim() })),
       };
-      if (!SB) { this.saveMsg = "未连接云端"; this.saveMsgCls = "err"; return; }
+      if (!SB) { this.saveMsg = "未连接云端，无法保存"; this.saveMsgCls = "err"; return; }
+      if (!this.date) { this.saveMsg = "请先选择日期"; this.saveMsgCls = "err"; return; }
       const now = new Date().toISOString();
-      const { error } = await SB.from("daily_records").upsert({
+      const payload = {
         date: this.date, manual_json: JSON.stringify(manual),
         updated_at: now, created_at: now,
-      }, { onConflict: "date" });
+      };
+      // 云端 upsert，带一次重试，规避瞬时网络抖动
+      let error = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const res = await SB.from("daily_records").upsert(payload, { onConflict: "date" });
+        error = res.error;
+        if (!error) break;
+        await new Promise(r => setTimeout(r, 800));
+      }
       if (!error) {
         this.saveMsg = `已保存 ${this.date}`; this.saveMsgCls = "ok";
         await this.loadDays(); await this.loadTrades();
-      } else { this.saveMsg = "保存失败：" + (error.message || ""); this.saveMsgCls = "err"; }
+      } else {
+        const code = error.code ? `(${error.code})` : "";
+        this.saveMsg = "保存失败" + code + "：" + (error.message || JSON.stringify(error));
+        this.saveMsgCls = "err";
+      }
     },
     async loadDays() {
       if (SB) {
