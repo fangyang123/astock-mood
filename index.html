@@ -226,9 +226,9 @@
           <label><b>总仓位 %</b></label>
           <input type="number" min="0" max="100" v-model.number="position" placeholder="0-100">
         </div>
-        <div>
+        <div style="grid-column:1 / -1">
           <label>交易体系复习</label>
-          <input type="text" v-model="note" placeholder="今天最重要的一个认知/教训">
+          <textarea v-model="note" rows="4" placeholder="今天最重要的一个认知/教训，可写多条"></textarea>
         </div>
       </div>
       <div class="row2">
