@@ -2,358 +2,1130 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="盯盘情绪">
-<link rel="manifest" href="/static/manifest.webmanifest">
-<title>盯盘情绪 · 快速记录</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="/static/supabase_config.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A股复盘 · 交易日志与胜率统计</title>
 <style>
-  :root{
-    --bg:#f5f7fa; --card:#ffffff; --line:#e2e8f0; --txt:#1a2233; --muted:#6b7790;
-    --accent:#2f6bff; --danger:#e23b3b; --ok:#1fae7a;
+  :root {
+    --bg:#f7f8fa; --card:#fff; --text:#1c1e28; --muted:#6b7280; --border:#e5e7eb;
+    --blue:#185FA5; --blue-l:#E6F1FB; --red:#A32D2D; --red-l:#FCEBEB;
+    --green:#3B6D11; --green-l:#EAF3DE; --amber:#854F0B; --amber-l:#FAEEDA;
+    --purple:#534AB7; --purple-l:#EEEDFE;
   }
-  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
-  html,body{margin:0; padding:0; background:var(--bg); color:var(--txt);
-    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;
-    font-size:16px; line-height:1.4; padding-bottom:env(safe-area-inset-bottom);}
-  .wrap{max-width:560px; margin:0 auto; padding:14px 14px 40px;}
-  h1{font-size:19px; margin:6px 0 2px;}
-  .sub{color:var(--muted); font-size:13px; margin-bottom:10px;}
-
-  /* 同步状态条 */
-  .syncbar{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px;}
-  .pill{background:var(--card); border:1px solid var(--line); border-radius:999px;
-    padding:6px 11px; font-size:13px; color:var(--muted);}
-  .pill b{color:var(--txt); font-size:15px;}
-  .pill.on{border-color:var(--ok); color:var(--ok);}
-  .pill.off{border-color:var(--danger); color:var(--danger);}
-  .pill.warn{border-color:#e0a000; color:#a97900;}
-  .mini{background:#eef2f8; color:var(--txt); border:1px solid var(--line);
-    border-radius:999px; padding:7px 13px; font-size:13px;}
-  .mini:active{background:var(--accent); border-color:var(--accent); color:#fff;}
-
-  .card{background:var(--card); border:1px solid var(--line); border-radius:14px;
-    padding:14px; margin-bottom:14px;}
-  label{display:block; font-size:13px; color:var(--muted); margin:0 0 7px;}
-  .chips{display:flex; flex-wrap:wrap; gap:8px;}
-  .chip{padding:10px 13px; border-radius:999px; border:1px solid var(--line);
-    background:#eef2f8; font-size:15px; min-width:64px; text-align:center;}
-  .chip.on{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600;}
-  .row{display:flex; gap:10px; margin-bottom:14px;}
-  .row>div{flex:1;}
-  input[type=number],input[type=datetime-local],input[type=text],select,textarea{
-    width:100%; background:#ffffff; color:var(--txt); border:1px solid var(--line);
-    border-radius:10px; padding:12px; font-size:16px;}
-  textarea{resize:vertical; min-height:120px;}
-  input[type=datetime-local]{color-scheme:light;}
-  .range-row{display:flex; align-items:center; gap:12px;}
-  input[type=range]{flex:1; height:32px; accent-color:var(--accent);}
-  .score{font-size:22px; font-weight:700; color:var(--accent); min-width:30px; text-align:center;}
-  .seg{display:flex; border:1px solid var(--line); border-radius:10px; overflow:hidden;}
-  .seg button{flex:1; background:#eef2f8; color:var(--txt); border:0; padding:13px; font-size:15px;}
-  .seg button.on{background:var(--ok); color:#06231a; font-weight:700;}
-  .seg button.on.bad{background:var(--danger); color:#2a0606;}
-  .submit{width:100%; background:var(--accent); color:#fff; border:0; border-radius:14px;
-    padding:17px; font-size:18px; font-weight:700; margin-top:4px;}
-  .msg{text-align:center; font-size:15px; margin-top:10px; min-height:20px;}
-  .msg.ok{color:var(--ok);} .msg.err{color:var(--danger);} .msg.info{color:var(--muted);}
-  .recent{margin-top:8px;}
-  h2{font-size:15px; margin:4px 0 10px; color:var(--muted);}
-  .item{background:#fbfcfe; border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-bottom:8px;}
-  .item .top{display:flex; justify-content:space-between; align-items:center; gap:8px;}
-  .item .em{font-weight:600;}
-  .item .meta{font-size:12px; color:var(--muted); margin-top:3px;}
-  .item .good{color:var(--ok); font-size:12px;}
-  .item .bad{color:var(--danger); font-size:12px;}
-  .foot{text-align:center; margin-top:18px; font-size:13px;}
-  .foot a{color:var(--accent); text-decoration:none;}
-  .cloudtag{font-size:11px; color:var(--ok);}
+  * { box-sizing:border-box; }
+  [v-cloak] { display:none; }
+  body { font-family:-apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+         background:var(--bg); color:var(--text); margin:0; padding:0 0 60px; }
+  header { background:var(--card); border-bottom:1px solid var(--border); padding:12px 24px;
+           display:flex; align-items:center; gap:16px; position:sticky; top:0; z-index:10; flex-wrap:wrap; }
+  header h1 { font-size:17px; margin:0; font-weight:600; }
+  header .date-input { font-size:13px; padding:4px 8px; border:1px solid var(--border); border-radius:6px; }
+  header .status { margin-left:auto; font-size:12px; color:var(--muted); }
+  header .status.ok { color:var(--green); }
+  nav { display:flex; gap:6px; margin-top:2px; }
+  nav .tab { font-size:13px; padding:6px 14px; border-radius:6px; cursor:pointer;
+             border:1px solid transparent; color:var(--muted); user-select:none; }
+  nav .tab.on { background:var(--blue-l); color:var(--blue); font-weight:600; border-color:var(--blue); }
+  main { max-width:960px; margin:20px auto; padding:0 20px; display:grid; gap:16px; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px 20px; }
+  .card h2 { font-size:14px; margin:0 0 10px; font-weight:600; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .card h2 .tag { font-size:11px; padding:1px 7px; border-radius:4px; font-weight:500; }
+  .muted { color:var(--muted); font-size:13px; }
+  button { font-size:13px; padding:6px 14px; border-radius:6px; border:1px solid var(--border);
+           background:var(--card); cursor:pointer; }
+  button:hover { background:#f0f2f5; }
+  button.primary { background:var(--blue); color:#fff; border-color:var(--blue); }
+  button.primary:hover { background:#124a85; }
+  button.danger { color:var(--red); }
+  button:disabled { opacity:.5; cursor:wait; }
+  input, select, textarea { font-family:inherit; font-size:13px; padding:7px 10px;
+           border:1px solid var(--border); border-radius:6px; background:#fff; }
+  .frm label { font-size:12px; color:var(--muted); display:block; margin-bottom:4px; }
+  .frm label b { color:var(--text); font-size:13px; }
+  .frm { display:grid; gap:14px; }
+  .frm .row3 { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+  .frm .row2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  /* 股票名称/代码 智能联想 */
+  .ac { position:relative; }
+  .ac-list { position:absolute; left:0; right:0; top:100%; margin-top:2px; z-index:50;
+             background:#fff; border:1px solid var(--border); border-radius:6px;
+             box-shadow:0 6px 18px rgba(0,0,0,.12); max-height:230px; overflow-y:auto; }
+  .ac-item { display:flex; justify-content:space-between; align-items:center; gap:8px;
+             padding:7px 10px; cursor:pointer; font-size:13px; }
+  .ac-item:hover, .ac-item.active { background:#eef4ff; }
+  .ac-item .ac-name { font-weight:600; }
+  .ac-item .ac-code { color:var(--muted); font-size:12px; }
+  textarea { width:100%; resize:vertical; min-height:52px; }
+  /* 盯盘情绪：芯片 / 分段切换 / 一览条形 / 时间线 */
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:4px; }
+  .chip { padding:5px 11px; border:1px solid var(--border); border-radius:16px; font-size:13px;
+          cursor:pointer; background:#fff; user-select:none; }
+  .chip.on { background:var(--red); color:#fff; border-color:var(--red); }
+  .mrow-flex { margin-bottom:14px; }
+  .mrow-flex > label { font-size:12px; color:var(--muted); display:block; margin-bottom:4px; }
+  .seg { display:flex; gap:8px; align-items:center; }
+  .seg-opt { padding:6px 12px; border:1px solid var(--border); border-radius:6px; font-size:13px;
+             cursor:pointer; background:#fff; }
+  .seg-opt.on { background:var(--text); color:#fff; border-color:var(--text); }
+  .stat-row { display:flex; gap:14px; flex-wrap:wrap; margin:6px 0 14px; }
+  .stat { flex:1; min-width:90px; background:#f6f8fb; border:1px solid var(--border);
+          border-radius:8px; padding:10px 12px; }
+  .stat .k { font-size:12px; color:var(--muted); }
+  .stat .v { font-size:24px; font-weight:700; margin-top:2px; }
+  .sub { font-size:14px; margin:14px 0 8px; color:var(--text); }
+  .bars { display:grid; gap:6px; }
+  .bar-row { display:grid; grid-template-columns:88px 1fr 56px; align-items:center; gap:8px; font-size:13px; }
+  .bar-label { color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .bar-track { background:#eef1f5; border-radius:6px; height:16px; overflow:hidden; }
+  .bar-fill { background:var(--blue); height:100%; border-radius:6px; transition:width .3s; }
+  .bar-fill.warn { background:var(--red); }
+  .bar-val { text-align:right; color:var(--muted); }
+  .mood-day { margin-bottom:14px; }
+  .mood-date { font-weight:700; margin:10px 0 6px; font-size:14px; }
+  .mood-item { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:7px 4px;
+               border-bottom:1px dashed var(--border); font-size:13px; }
+  .mood-ts { font-variant-numeric:tabular-nums; color:var(--text); font-weight:600; }
+  .tag-acted { padding:1px 8px; border-radius:10px; font-size:12px; }
+  .tag-acted.bad { background:var(--red-l); color:var(--red); }
+  .tag-acted.good { background:#e6f7ec; color:#1a9d4b; }
+  .mood-note { width:100%; color:var(--muted); font-size:12px; margin-top:2px; }
+  button.mini { padding:2px 8px; font-size:12px; border-radius:5px; }
+  .empty { color:var(--muted); text-align:center; padding:20px; font-size:13px; }
+  /* 十阶段 */
+  .phases { display:flex; gap:4px; margin-top:8px; }
+  .phase { flex:1; height:34px; border-radius:6px; display:flex; align-items:center; justify-content:center;
+           font-size:11px; color:var(--muted); background:#f0f2f5; }
+  .phase.active { color:#fff; font-weight:600; box-shadow:0 2px 8px rgba(24,95,165,.35); }
+  .p-up.active { background:var(--red); } .p-down.active { background:var(--green); } .p-mid.active { background:var(--amber); }
+  .phase-select { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; }
+  .phase-opt { border:1px solid var(--border); border-radius:6px; padding:6px 4px; text-align:center;
+               font-size:12px; cursor:pointer; background:#fff; user-select:none; }
+  .phase-opt:hover { border-color:var(--blue); }
+  .phase-opt.sel-up { background:var(--red); border-color:var(--red); color:#fff; }
+  .phase-opt.sel-mid { background:var(--amber); border-color:var(--amber); color:#fff; }
+  .phase-opt.sel-down { background:var(--green); border-color:var(--green); color:#fff; }
+  .slider-row { display:flex; align-items:center; gap:10px; }
+  .slider-row input[type=range] { flex:1; }
+  .slider-row .score { font-size:16px; font-weight:600; width:40px; text-align:center; }
+  .slider-labels { display:flex; justify-content:space-between; font-size:11px; color:var(--muted); padding:0 2px; }
+  /* 表格 */
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { padding:7px 10px; border-bottom:1px solid var(--border); text-align:left; white-space:nowrap; }
+  th { color:var(--muted); font-weight:500; font-size:12px; }
+  tbody tr:hover td { background:#fafbfc; }
+  .empty { color:var(--muted); font-size:13px; text-align:center; padding:14px 0; }
+  .up { color:var(--red); } .down { color:var(--green); }
+  .badge { font-size:11px; padding:1px 7px; border-radius:4px; background:#f0f2f5; color:var(--muted); }
+  /* 统计卡片 */
+  .stat-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:8px; }
+  .stat-card { background:#fafbfc; border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
+  .stat-card .k { font-size:11px; color:var(--muted); }
+  .stat-card .v { font-size:20px; font-weight:600; margin-top:2px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:720px){ .grid2,.frm .row3{grid-template-columns:1fr;} .phase-select{grid-template-columns:repeat(3,1fr);} main{padding:0 12px;margin:10px auto;} .frm{padding:12px;} }
+  /* 手机表格横向滚动 */
+  .tblwrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  .name-link { cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px; }
+  /* 平仓弹层 */
+  .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.35); display:flex;
+              align-items:center; justify-content:center; z-index:100; }
+  .modal { background:#fff; border-radius:10px; padding:18px 22px; width:min(420px,92vw);
+           display:grid; gap:10px; box-shadow:0 8px 30px rgba(0,0,0,.18); }
+  .modal h3 { margin:0; font-size:15px; }
+  .modal .mrow { display:grid; grid-template-columns:90px 1fr; gap:8px; align-items:center; font-size:13px; }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>盯盘情绪 · 快速记录</h1>
-  <div class="sub">盘中随手记，先看见自己的心态 <span class="cloudtag">· 云端实时同步</span></div>
+<div id="app" v-cloak>
 
-  <div class="syncbar">
-    <span id="netStatus" class="pill">连接中…</span>
-    <span class="pill">云端 <b id="cloudCount">-</b> 条</span>
-    <button id="refreshBtn" class="mini">刷新</button>
-    <button id="exportBtn" class="mini">导出备份</button>
+<header>
+  <h1>A股复盘 · 交易日志</h1>
+  <nav>
+    <div class="tab" :class="{on: activeTab==='daily'}" @click="switchTab('daily')">每日复盘</div>
+    <div class="tab" :class="{on: activeTab==='trades'}" @click="switchTab('trades')">交易记录</div>
+    <div class="tab" :class="{on: activeTab==='stats'}" @click="switchTab('stats')">胜率统计</div>
+    <div class="tab" :class="{on: activeTab==='mood'}" @click="switchTab('mood')">盯盘情绪</div>
+  </nav>
+  <input type="date" class="date-input" v-model="date" @change="onDateChange">
+  <span class="status" :class="{ok: apiOk}">{{ apiStatus }}</span>
+</header>
+
+<main>
+
+<!-- ============ 每日复盘（轻量） ============ -->
+<section v-show="activeTab==='daily'">
+  <div class="card">
+    <h2><span class="tag" style="background:var(--blue-l);color:var(--blue)">周期定位</span>
+        10 秒填完，给交易记录打上周期标签</h2>
+    <div class="phase-select">
+      <div v-for="p in phases" :key="p[0]"
+           :class="['phase-opt', cyclePhase===p[0] ? 'sel-'+p[1] : '']"
+           @click="togglePhase(p[0])">{{ p[0] }}</div>
+    </div>
+    <div class="phases">
+      <div v-for="p in phases" :key="p[0]"
+           :class="['phase','p-'+p[1], cyclePhase===p[0] ? 'active' : '']">{{ p[0] }}</div>
+    </div>
   </div>
+  <div class="card">
+    <h2><span class="tag" style="background:var(--amber-l);color:var(--amber)">当日小结</span></h2>
+    <div class="frm">
+      <div class="row3">
+        <div>
+          <label><b>情绪打分</b> 0冰点 ←→ 100亢奋</label>
+          <div class="slider-row">
+            <input type="range" min="0" max="100" v-model.number="sentiment">
+            <span class="score">{{ sentiment }}</span>
+          </div>
+          <div class="slider-labels"><span>0</span><span>50</span><span>100</span></div>
+        </div>
+        <div>
+          <label><b>总仓位 %</b></label>
+          <input type="number" min="0" max="100" v-model.number="position" placeholder="0-100">
+        </div>
+        <div>
+          <label>一句话复盘</label>
+          <input type="text" v-model="note" placeholder="今天最重要的一个认知/教训">
+        </div>
+      </div>
+      <div class="row2">
+        <div>
+          <label>做对了什么</label>
+          <textarea v-model="review" rows="2"></textarea>
+        </div>
+        <div>
+          <label>做错了什么</label>
+          <textarea v-model="mistake" rows="2"></textarea>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button class="primary" @click="saveDay">保存当日复盘</button>
+        <span :class="['muted', saveMsgCls]" v-if="saveMsg">{{ saveMsg }}</span>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <h2><span class="tag" style="background:var(--blue-l);color:var(--blue)">历史</span> 点击回看某日</h2>
+    <div class="tblwrap"><table>
+      <thead><tr><th>日期</th><th>周期</th><th>情绪</th><th>仓位</th><th>操作</th></tr></thead>
+      <tbody>
+        <tr v-for="d in days" :key="d.date" @click="loadDay(d.date)">
+          <td>{{ d.date }}</td>
+          <td>{{ d.cycle_phase || '—' }}</td>
+          <td>{{ d.sentiment != null ? d.sentiment : '—' }}</td>
+          <td>{{ d.position != null ? (d.position + '%') : '—' }}</td>
+          <td><button class="danger" @click.stop="openDelDay(d.date)">删</button></td>
+        </tr>
+      </tbody>
+    </table></div>
+    <div class="empty" v-if="!days.length">暂无记录</div>
+  </div>
+</section>
 
-  <div id="cloudWarn" class="card" style="display:none; background:#fff4f4;border-color:#ffb4b4;">
-    <div style="font-size:14px;color:#c0392b;font-weight:700;">⚠️ 无法连接云端</div>
-    <div class="hint" style="color:#a23;margin-top:6px;" id="cloudWarnMsg"></div>
+<!-- ============ 交易记录 ============ -->
+<section v-show="activeTab==='trades'">
+  <div class="card" style="display:flex;align-items:center;gap:14px;padding:12px 16px">
+    <img :src="qrSrc" alt="手机访问二维码" style="width:92px;height:92px;border:1px solid var(--border);border-radius:8px;background:#fff;flex-shrink:0">
+    <div style="min-width:0">
+      <h2 style="margin:0 0 4px">手机扫码，直接传截图</h2>
+      <div class="muted" style="font-size:12px;line-height:1.6">
+        手机与电脑连同一 Wi-Fi，扫码打开本系统<br>
+        开仓或点「＋图」即可从手机相册直接上传分时/日K截图<br>
+        当前地址：<span style="user-select:all">{{ lanUrl }}</span>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <h2><span class="tag" style="background:var(--red-l);color:var(--red)">开仓</span>
+        记一笔新交易</h2>
+    <div class="frm">
+      <div class="row3">
+        <div class="ac"><label><b>股票名称</b></label>
+          <input type="text" v-model="tradeForm.name" autocomplete="off"
+                 placeholder="中文名 / 拼音首字母，如 zxgj"
+                 @focus="nameOpen=true" @input="nameOpen=true" @blur="blurStock()">
+          <div class="ac-list" v-if="nameOpen && nameMatches.length">
+            <div class="ac-item" v-for="s in nameMatches" :key="s.code" @mousedown.prevent="pickStock(s)">
+              <span class="ac-name">{{ s.name }}</span><span class="ac-code">{{ s.code }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="ac"><label>代码</label>
+          <input type="text" v-model="tradeForm.code" autocomplete="off"
+                 placeholder="如 688981（选填）"
+                 @focus="codeOpen=true" @input="onCodeInput()" @blur="blurStock()">
+          <div class="ac-list" v-if="codeOpen && codeMatches.length">
+            <div class="ac-item" v-for="s in codeMatches" :key="s.code" @mousedown.prevent="pickStock(s)">
+              <span class="ac-name">{{ s.name }}</span><span class="ac-code">{{ s.code }}</span>
+            </div>
+          </div>
+        </div>
+        <div><label><b>题材/板块</b></label><input type="text" v-model="tradeForm.sector" placeholder="如 半导体" list="sector-list"><datalist id="sector-list"><option v-for="s in sectors" :key="s" :value="s"></option></datalist></div>
+      </div>
+      <div class="row3">
+        <div><label><b>开仓日期</b></label><input type="date" v-model="tradeForm.openDate"></div>
+        <div><label><b>开仓均价</b></label><input type="number" step="0.01" v-model.number="tradeForm.openPrice" placeholder="元"></div>
+        <div><label><b>股数</b></label><input type="number" step="100" v-model.number="tradeForm.shares" placeholder="如 2000"></div>
+      </div>
+      <div class="row3">
+        <div><label>策略</label>
+          <select v-model="tradeForm.strategy"><option>打板</option><option>半路</option><option>低吸</option><option>趋势</option><option>其他</option></select></div>
+        <div><label>开仓时情绪</label>
+          <select v-model="tradeForm.emotion"><option value="">—</option><option>冷静</option><option>犹豫</option><option>恐踏空</option><option>恐慌</option></select></div>
+        <div><label>仓位 %</label><input type="number" v-model.number="tradeForm.position" min="0" max="100" placeholder="占总资金"></div>
+      </div>
+      <div><label>买入逻辑（为什么买）</label><textarea v-model="tradeForm.reason" rows="2"></textarea></div>
+      <div class="row2">
+        <div><label>分时截图（买入点）</label><input type="file" accept="image/*" style="width:100%" @change="onOpenShotMin"></div>
+        <div><label>日K截图（买入点）</label><input type="file" accept="image/*" style="width:100%" @change="onOpenShotK"></div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button class="primary" @click="addTrade">记录开仓</button>
+        <span class="muted">{{ tradeMsg }}</span>
+      </div>
+    </div>
   </div>
 
   <div class="card">
-    <div class="row">
-      <div>
-        <label>时间</label>
-        <input type="datetime-local" id="ts" step="60">
+    <h2><span class="tag" style="background:var(--amber-l);color:var(--amber)">持仓中</span></h2>
+    <div class="tblwrap"><table>
+      <thead><tr><th>开仓日</th><th>股票</th><th>题材</th><th>开仓价</th><th>股数</th><th>周期</th><th>策略</th><th>心态</th><th>图</th><th>操作</th></tr></thead>
+      <tbody>
+        <tr v-for="t in openTrades" :key="t.id">
+          <td>{{ t.open_date }}</td>
+          <td><b class="name-link" @click="openDetail(t.id)">{{ t.stock_name }}</b><span v-if="t.stock_code" class="badge"> {{ t.stock_code }}</span></td>
+          <td>{{ t.sector || '—' }}</td>
+          <td>{{ t.open_price }}</td>
+          <td>{{ t.shares }}</td>
+          <td>{{ t.cycle_phase ? ('') : '' }}<span v-if="t.cycle_phase" class="badge">{{ t.cycle_phase }}</span><span v-else>—</span></td>
+          <td>{{ t.strategy || '—' }}</td>
+          <td>{{ t.emotion ? ('') : '' }}<span v-if="t.emotion" class="badge">{{ t.emotion }}</span><span v-else>—</span></td>
+          <td><button @click.stop="openShot(t.id)">{{ shotCount(t) ? ('图'+shotCount(t)) : '＋图' }}</button></td>
+          <td><button class="primary" @click="openClose(t)">平仓</button>
+              <button class="danger" @click="openDelTrade(t.id)">删</button></td>
+        </tr>
+      </tbody>
+    </table></div>
+    <div class="empty" v-if="!openTrades.length">暂无持仓记录</div>
+  </div>
+
+  <div class="card">
+    <h2><span class="tag" style="background:var(--green-l);color:var(--green)">已了结</span>
+        按平仓日倒序</h2>
+    <div class="tblwrap"><table>
+      <thead><tr><th>开仓→平仓</th><th>股票</th><th>题材</th><th>周期</th><th>策略</th><th>心态 开→平</th><th>开/平价</th><th>盈亏%</th><th>盈亏额</th><th>出场原因</th><th>图</th><th>操作</th></tr></thead>
+      <tbody>
+        <tr v-for="t in closedTrades" :key="t.id">
+          <td>{{ t.open_date }} → {{ t.close_date }}</td>
+          <td><b class="name-link" @click="openDetail(t.id)">{{ t.stock_name }}</b></td>
+          <td>{{ t.sector || '—' }}</td>
+          <td>{{ t.cycle_phase || '—' }}</td>
+          <td>{{ t.strategy || '—' }}</td>
+          <td>{{ t.emotion || '—' }}<span v-if="t.close_emotion"> → {{ t.close_emotion }}</span></td>
+          <td>{{ t.open_price }} → {{ t.close_price }}</td>
+          <td :class="pnlClass(t.pnl)">{{ t.pnl>0 ? '+' : '' }}{{ t.pnl_pct }}%</td>
+          <td :class="pnlClass(t.pnl)">{{ t.pnl>0 ? '+' : '' }}{{ moneyK(t.pnl) }}</td>
+          <td>{{ t.close_reason || '—' }}</td>
+          <td><button @click.stop="openShot(t.id)">{{ shotCount(t) ? ('图'+shotCount(t)) : '＋图' }}</button></td>
+          <td><button @click="reopen(t.id)" title="撤销平仓">↩</button>
+              <button class="danger" @click="openDelTrade(t.id)">删</button></td>
+        </tr>
+      </tbody>
+    </table></div>
+    <div class="empty" v-if="!closedTrades.length">暂无已了结交易</div>
+  </div>
+</section>
+
+<!-- ============ 胜率统计 ============ -->
+<section v-show="activeTab==='stats'">
+  <div class="card">
+    <h2><span class="tag" style="background:var(--purple-l);color:var(--purple)">总览</span></h2>
+    <div class="stat-cards">
+      <div class="stat-card" v-for="c in statCards" :key="c.k">
+        <div class="k">{{ c.k }}</div>
+        <div class="v" :class="c.cls">{{ c.v }}</div>
       </div>
     </div>
+    <div class="muted" style="margin-top:10px">{{ statNote }}</div>
+  </div>
+  <div class="grid2">
+    <div class="card" v-for="b in breakdowns" :key="b.title">
+      <h2><span class="tag" style="background:var(--purple-l);color:var(--purple)">{{ b.title }}</span></h2>
+      <table>
+        <thead><tr><th>{{ b.key }}</th><th>笔数</th><th>胜率</th><th>总盈亏</th><th>均盈亏%</th></tr></thead>
+        <tbody>
+          <tr v-for="r in b.rows" :key="r.group">
+            <td>{{ r.group }}</td><td>{{ r.count }}</td><td>{{ r.win_rate }}%</td>
+            <td :class="pnlClass(r.total_pnl)">{{ r.total_pnl>0 ? '+' : '' }}{{ moneyK(r.total_pnl) }}</td>
+            <td :class="r.avg_pnl_pct>0 ? 'up' : 'down'">{{ r.avg_pnl_pct>0 ? '+' : '' }}{{ r.avg_pnl_pct }}%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card">
+    <h2><span class="tag" style="background:var(--blue-l);color:var(--blue)">月度</span></h2>
+    <div class="tblwrap"><table>
+      <thead><tr><th>月份</th><th>笔数</th><th>胜率</th><th>盈亏额</th></tr></thead>
+      <tbody>
+        <tr v-for="m in months" :key="m.month">
+          <td>{{ m.month }}</td><td>{{ m.count }}</td><td>{{ m.winRate }}%</td>
+          <td :class="m.pnl>0 ? 'up' : 'down'">{{ moneyWan(m.pnl) }}</td>
+        </tr>
+      </tbody>
+    </table></div>
+    <div class="empty" v-if="!months.length">暂无数据</div>
+  </div>
+</section>
 
-    <label>情绪</label>
-    <div class="chips" id="emotions"></div>
+<!-- ============ 盯盘情绪 ============ -->
+<section v-show="activeTab==='mood'">
+  <!-- 手机数据导入 / 云端合并 -->
+  <div class="card" style="background:var(--blue-l);border-color:var(--blue)">
+    <h2><span class="tag" style="background:var(--blue);color:#fff">云端同步</span> 数据实时共用</h2>
+    <div class="muted" style="margin-bottom:10px">手机和 Mac 现在都直连云端 Supabase，任何一边记的，另一边立刻能看到，无需手动导入。若你之前的手机备份还留在本地，可选文件合并进云端（按记录去重）。当前数据源：<b>{{ moodSource==='cloud' ? '云端' : moodSource==='local' ? '本地' : '离线' }}</b></div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="primary" @click="$refs.moodFile.click()">合并本地备份</button>
+      <input ref="moodFile" type="file" accept="application/json" style="display:none" @change="importMoodFile">
+      <span :class="['muted', moodMsgCls]" v-if="moodMsg">{{ moodMsg }}</span>
+    </div>
+  </div>
 
-    <div class="row" style="margin-top:14px;">
-      <div>
-        <label>强度 1–5</label>
-        <div class="range-row">
-          <input type="range" id="intensity" min="1" max="5" value="3">
-          <span class="score" id="intensityVal">3</span>
+  <!-- 快速记一笔 -->
+  <div class="card">
+    <h2><span class="tag" style="background:var(--red-l);color:var(--red)">快速记一笔</span>
+        盘中随手记，先看见自己的心态</h2>
+    <div class="frm">
+      <div class="row3">
+        <div><label><b>时间</b></label>
+          <input type="datetime-local" v-model="moodForm.ts" step="60"></div>
+        <div><label>当时仓位 %</label>
+          <input type="number" min="0" max="100" v-model.number="moodForm.position_pct" placeholder="0-100"></div>
+        <div><label>持仓浮盈浮亏 %</label>
+          <input type="number" step="0.1" v-model.number="moodForm.pnl_pct" placeholder="如 -3.5"></div>
+      </div>
+      <div class="mrow-flex">
+        <label><b>情绪</b></label>
+        <div class="chips">
+          <span class="chip" v-for="e in moodEmotions" :key="e"
+                :class="{on: moodForm.emotion===e}" @click="moodForm.emotion=e">{{ e }}</span>
         </div>
       </div>
-    </div>
-
-    <div class="row">
-      <div>
-        <label>当时仓位 %</label>
-        <input type="number" id="position_pct" min="0" max="100" placeholder="选填 0-100">
+      <div class="row3">
+        <div><label>强度 1–5</label>
+          <div class="slider-row">
+            <input type="range" min="1" max="5" v-model.number="moodForm.intensity">
+            <span class="score">{{ moodForm.intensity }}</span>
+          </div></div>
+        <div><label>触发</label>
+          <select v-model="moodForm.trigger">
+            <option value="">—</option>
+            <option v-for="t in moodTriggers" :key="t">{{ t }}</option>
+          </select></div>
+        <div><label>冲动</label>
+          <select v-model="moodForm.urge">
+            <option value="">—</option>
+            <option v-for="u in moodUrges" :key="u">{{ u }}</option>
+          </select></div>
       </div>
-      <div>
-        <label>持仓浮盈浮亏 %</label>
-        <input type="number" id="pnl_pct" step="0.1" placeholder="选填 如 -3.5">
+      <div class="row3">
+        <div><label>原计划动作</label>
+          <select v-model="moodForm.plan">
+            <option value="">—</option>
+            <option v-for="p in moodPlans" :key="p">{{ p }}</option>
+          </select></div>
+        <div><label>是否按情绪操作了</label>
+          <div class="seg">
+            <span class="seg-opt" :class="{on: moodForm.acted===true}" @click="moodForm.acted=true">是（追/割了）</span>
+            <span class="seg-opt" :class="{on: moodForm.acted===false}" @click="moodForm.acted=false">否（忍住了）</span>
+          </div></div>
+        <div></div>
+      </div>
+      <div><label>备注（实际做了什么 / 上下文）</label>
+        <textarea v-model="moodForm.note" rows="2"></textarea></div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button class="primary" @click="addMood">保存这条情绪</button>
+        <span :class="['muted', moodMsgCls]" v-if="moodMsg">{{ moodMsg }}</span>
       </div>
     </div>
-
-    <div class="row">
-      <div>
-        <label>触发</label>
-        <select id="trigger"></select>
-      </div>
-      <div>
-        <label>冲动</label>
-        <select id="urge"></select>
-      </div>
-    </div>
-
-    <div class="row">
-      <div>
-        <label>原计划动作</label>
-        <select id="plan"></select>
-      </div>
-    </div>
-
-    <label>是否按情绪操作了</label>
-    <div class="seg" style="margin-bottom:14px;">
-      <button id="actedTrue" type="button">是（追/割了）</button>
-      <button id="actedFalse" class="on" type="button">否（忍住了）</button>
-    </div>
-
-    <label>备注（实际做了什么 / 上下文）</label>
-    <textarea id="note" rows="4" placeholder="选填"></textarea>
-
-    <button class="submit" id="saveBtn">保存这条情绪</button>
-    <div class="msg" id="msg"></div>
   </div>
 
-  <div class="recent">
-    <h2>全部记录（云端）</h2>
-    <div id="recentList"></div>
+  <!-- 一览 -->
+  <div class="card">
+    <h2><span class="tag" style="background:var(--blue-l);color:var(--blue)">一览</span> 你的心态画像</h2>
+    <div class="stat-row">
+      <div class="stat"><div class="k">总记录</div><div class="v">{{ moods.length }}</div></div>
+      <div class="stat"><div class="k">近7天</div><div class="v">{{ mood7d }}</div></div>
+      <div class="stat"><div class="k">按情绪操作率</div><div class="v" :class="moodActedRate>=50?'down':'up'">{{ moodActedRate }}%</div></div>
+    </div>
+
+    <h3 class="sub">情绪频率</h3>
+    <div class="bars">
+      <div class="bar-row" v-for="b in moodByEmotion" :key="b.label">
+        <span class="bar-label">{{ b.label }}</span>
+        <div class="bar-track"><div class="bar-fill" :style="{width: b.pct+'%'}"></div></div>
+        <span class="bar-val">{{ b.count }}</span>
+      </div>
+      <div class="empty" v-if="!moodByEmotion.length">暂无数据</div>
+    </div>
+
+    <h3 class="sub">追涨杀跌量化（按情绪的操作率）</h3>
+    <div class="bars">
+      <div class="bar-row" v-for="b in moodActedByEmotion" :key="b.label">
+        <span class="bar-label">{{ b.label }}</span>
+        <div class="bar-track"><div class="bar-fill warn" :style="{width: b.pct+'%'}"></div></div>
+        <span class="bar-val">{{ b.acted }}/{{ b.count }}</span>
+      </div>
+      <div class="empty" v-if="!moodActedByEmotion.length">暂无数据</div>
+    </div>
+
+    <h3 class="sub">按时间段（哪个钟点心态最差）</h3>
+    <div class="bars">
+      <div class="bar-row" v-for="b in moodByHour" :key="b.label">
+        <span class="bar-label">{{ b.label }}</span>
+        <div class="bar-track"><div class="bar-fill" :style="{width: b.pct+'%'}"></div></div>
+        <span class="bar-val">{{ b.count }}</span>
+      </div>
+      <div class="empty" v-if="!moodByHour.length">暂无数据</div>
+    </div>
   </div>
 
-  <div class="foot"><a href="/">打开完整复盘系统 →</a></div>
+  <!-- 时间线 -->
+  <div class="card">
+    <h2><span class="tag" style="background:var(--amber-l);color:var(--amber)">时间线</span> 点击删除某条</h2>
+    <div v-for="g in moodsByDate" :key="g.date" class="mood-day">
+      <div class="mood-date">{{ g.date }} <span class="muted">({{ g.items.length }}笔)</span></div>
+      <div v-for="m in g.items" :key="m.id" class="mood-item">
+        <span class="mood-ts">{{ m.ts.slice(11,16) }}</span>
+        <span class="badge">{{ m.emotion }}</span>
+        <span class="muted">强{{ m.intensity }}</span>
+        <span class="muted" v-if="m.trigger">· {{ m.trigger }}</span>
+        <span class="muted" v-if="m.urge">→ 冲动{{ m.urge }}</span>
+        <span class="tag-acted" :class="m.acted ? 'bad' : 'good'">{{ m.acted ? '按情绪操作' : '忍住未动' }}</span>
+        <span class="muted" v-if="m.position_pct!=null">· 仓{{ m.position_pct }}%</span>
+        <span class="muted" v-if="m.pnl_pct!=null">· 浮{{ m.pnl_pct>0?'+':'' }}{{ m.pnl_pct }}%</span>
+        <span class="muted" v-if="m.plan">· 计划{{ m.plan }}</span>
+        <button class="mini danger" @click="deleteMood(m.id)">删</button>
+        <div class="mood-note" v-if="m.note">{{ m.note }}</div>
+      </div>
+    </div>
+    <div class="empty" v-if="!moods.length">还没有记录，盘中随手记一笔吧</div>
+  </div>
+</section>
+
+</main>
+
+<!-- ============ 弹窗（条件渲染，彻底告别 innerHTML 拼接） ============ -->
+
+<!-- 平仓弹窗 -->
+<div class="modal-bg" v-if="modal.close.show" @click.self="modal.close.show=false">
+  <div class="modal" style="width:min(460px,94vw)">
+    <h3>平仓 · {{ modal.close.name }}</h3>
+    <div class="mrow"><span>平仓日期</span><input type="date" v-model="modal.close.date"></div>
+    <div class="mrow"><span>平仓均价</span><input type="number" step="0.01" v-model.number="modal.close.price" placeholder="元"></div>
+    <div class="mrow"><span>出场原因</span>
+      <select v-model="modal.close.reason"><option>止盈</option><option>止损</option><option>逻辑破坏</option><option>情绪化卖出</option><option>其他</option></select></div>
+    <div class="mrow"><span>平仓心态</span>
+      <select v-model="modal.close.emotion"><option value="">—</option><option>冷静</option><option>犹豫</option><option>恐踏空</option><option>恐慌</option><option>侥幸</option><option>报复性交易</option></select></div>
+    <div><div style="font-size:12px;color:var(--muted);margin-bottom:4px">这笔交易的总结（做对了什么 / 教训是什么）</div>
+      <textarea v-model="modal.close.summary" rows="3" placeholder="例：买点符合计划，但卖早了——是被分时洗出去的，下次按日K止损位拿住"></textarea></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button @click="modal.close.show=false">取消</button>
+      <button class="primary" @click="doClose">确认平仓</button>
+    </div>
+  </div>
 </div>
 
-<input id="importFile" type="file" accept="application/json" style="display:none;">
+<!-- 删除每日复盘确认 -->
+<div class="modal-bg" v-if="modal.delDay.show" @click.self="modal.delDay.show=false">
+  <div class="modal" style="max-width:320px">
+    <h3>删除复盘</h3>
+    <p class="muted">删除 {{ modal.delDay.date }} 的复盘记录（行情数据保留）。</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button @click="modal.delDay.show=false">取消</button>
+      <button class="danger" @click="confirmDelDay">确认删除</button>
+    </div>
+  </div>
+</div>
 
+<!-- 删除交易确认 -->
+<div class="modal-bg" v-if="modal.delTrade.show" @click.self="modal.delTrade.show=false">
+  <div class="modal" style="max-width:320px">
+    <h3>删除交易</h3>
+    <p class="muted">彻底删除这笔交易及其截图，不可恢复。</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button @click="modal.delTrade.show=false">取消</button>
+      <button class="danger" @click="confirmDelTrade">确认删除</button>
+    </div>
+  </div>
+</div>
+
+<!-- 交易详情弹层 -->
+<div class="modal-bg" v-if="detailTrade" @click.self="closeDetail">
+  <div class="modal" style="width:min(560px,94vw)">
+    <template v-if="detailTrade">
+      <h3>{{ detailTrade.stock_name }}<span v-if="detailTrade.stock_code" class="badge"> {{ detailTrade.stock_code }}</span>
+        <span class="badge">{{ detailTrade.status==='open' ? '持仓中' : '已了结' }}</span></h3>
+      <div style="font-size:13px;line-height:1.7">
+        <div class="mrow"><div>开仓日 / 价</div><div>{{ detailTrade.open_date }} / ¥{{ detailTrade.open_price }}</div></div>
+        <div class="mrow"><div>股数 / 仓位</div><div>{{ detailTrade.shares }} 股<span v-if="detailTrade.position_pct">（{{ detailTrade.position_pct }}%）</span></div></div>
+        <div class="mrow"><div>题材 / 策略</div><div>{{ detailTrade.sector || '—' }} / {{ detailTrade.strategy || '—' }}</div></div>
+        <div class="mrow"><div>周期阶段</div><div>{{ detailTrade.cycle_phase || '—' }}</div></div>
+        <div class="mrow"><div>开仓情绪</div><div><span class="badge">{{ detailTrade.emotion || '—' }}</span></div></div>
+        <template v-if="detailTrade.status==='closed'">
+          <div class="mrow"><div>平仓日 / 价</div><div>{{ detailTrade.close_date }} / ¥{{ detailTrade.close_price }}</div></div>
+          <div class="mrow"><div>出场原因</div><div>{{ detailTrade.close_reason || '—' }}</div></div>
+          <div class="mrow"><div>平仓心态</div><div><span v-if="detailTrade.close_emotion" class="badge">{{ detailTrade.close_emotion }}</span><span v-else>—</span></div></div>
+          <div class="mrow"><div>盈亏</div><div :class="pnlClass(detailTrade.pnl)">{{ detailTrade.pnl>0 ? '+' : '' }}{{ detailTrade.pnl.toFixed(0) }} 元（{{ detailTrade.pnl_pct>0 ? '+' : '' }}{{ detailTrade.pnl_pct }}%）</div></div>
+          <div class="mrow"><div>交易总结</div><div style="white-space:pre-wrap">{{ detailTrade.close_summary || '—' }}</div></div>
+        </template>
+        <div class="mrow"><div>买入逻辑</div><div style="white-space:pre-wrap">{{ detailTrade.open_reason || '—' }}</div></div>
+      </div>
+      <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:8px">
+        <div style="margin:6px 0 2px"><div style="font-size:12px;color:var(--muted);margin-bottom:4px">分时图（买入位置）</div>
+          <img v-if="detailTrade.shot_min" :src="detailTrade.shot_min" @click="lightbox(detailTrade.shot_min)" style="max-width:100%;max-height:200px;border:1px solid var(--border);border-radius:6px;cursor:zoom-in">
+          <div v-else class="muted" style="font-size:12px">未上传</div></div>
+        <div style="margin:6px 0 2px"><div style="font-size:12px;color:var(--muted);margin-bottom:4px">日K图（趋势位置）</div>
+          <img v-if="detailTrade.shot_k" :src="detailTrade.shot_k" @click="lightbox(detailTrade.shot_k)" style="max-width:100%;max-height:200px;border:1px solid var(--border);border-radius:6px;cursor:zoom-in">
+          <div v-else class="muted" style="font-size:12px">未上传</div></div>
+        <div style="margin-top:8px"><button @click="openShot(detailTrade.id)">管理截图（上传/替换）</button></div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:10px">
+        <button @click="closeDetail">关闭</button>
+      </div>
+    </template>
+  </div>
+</div>
+
+<!-- 截图管理弹层 -->
+<div class="modal-bg" v-if="shotTrade" @click.self="modal.shot.tid=null">
+  <div class="modal" style="width:min(520px,94vw)">
+    <template v-if="shotTrade">
+      <h3>买入点截图 · {{ shotTrade.stock_name }}（{{ shotTrade.open_date }}）</h3>
+      <div style="margin:4px 0 10px">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:4px">分时图（当日买入位置）</div>
+        <img v-if="shotTrade.shot_min" :src="shotTrade.shot_min" @click="lightbox(shotTrade.shot_min)" style="max-width:100%;max-height:200px;border:1px solid var(--border);border-radius:6px;cursor:zoom-in">
+        <div v-else class="muted" style="font-size:12px">未上传</div>
+        <div style="margin-top:6px;display:flex;gap:6px;align-items:center">
+          <input type="file" accept="image/*" style="font-size:12px;flex:1" @change="onShotFile($event,'min')">
+          <button class="primary" @click="uploadShot('min')">上传</button>
+          <button v-if="shotTrade.shot_min" class="danger" @click="removeShot(shotTrade.id,'min')">删</button>
+        </div>
+      </div>
+      <div style="margin:4px 0 10px">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:4px">日K图（买入点在趋势中的位置）</div>
+        <img v-if="shotTrade.shot_k" :src="shotTrade.shot_k" @click="lightbox(shotTrade.shot_k)" style="max-width:100%;max-height:200px;border:1px solid var(--border);border-radius:6px;cursor:zoom-in">
+        <div v-else class="muted" style="font-size:12px">未上传</div>
+        <div style="margin-top:6px;display:flex;gap:6px;align-items:center">
+          <input type="file" accept="image/*" style="font-size:12px;flex:1" @change="onShotFile($event,'k')">
+          <button class="primary" @click="uploadShot('k')">上传</button>
+          <button v-if="shotTrade.shot_k" class="danger" @click="removeShot(shotTrade.id,'k')">删</button>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end">
+        <button @click="modal.shot.tid=null">关闭</button>
+      </div>
+    </template>
+  </div>
+</div>
+
+<!-- 通用确认弹窗（撤销平仓 / 删除截图） -->
+<div class="modal-bg" v-if="modal.confirm.show" @click.self="modal.confirm.show=false">
+  <div class="modal" style="max-width:320px">
+    <h3>{{ modal.confirm.title }}</h3>
+    <p class="muted">{{ modal.confirm.msg }}</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button @click="modal.confirm.show=false">取消</button>
+      <button class="danger" @click="confirmOK">确认</button>
+    </div>
+  </div>
+</div>
+
+<!-- 图片放大 -->
+<div v-if="lightboxSrc" @click="lightboxSrc=''"
+     style="position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:200;display:flex;align-items:center;justify-content:center;cursor:zoom-out">
+  <img :src="lightboxSrc" style="max-width:96vw;max-height:96vh">
+</div>
+
+</div><!-- /#app -->
+
+<script src="static/supabase-js.min.js"></script>
+<script src="static/supabase_config.js"></script>
+<script src="static/vue.global.prod.js"></script>
 <script>
-  var EMOTIONS = ["冷静","犹豫","恐踏空","贪婪","恐慌","后悔","兴奋","麻木"];
-  var TRIGGERS = ["","大盘拉升","大盘跳水","持仓拉升","持仓跳水","横盘无聊","看到利好消息","看到利空消息","空仓焦虑","其他"];
-  var URGES    = ["","想买","想加仓","想卖","想割肉","想观望"];
-  var PLANS    = ["","持有","加仓","减仓","清仓","开新仓","空仓等待","其他"];
+const { createApp } = Vue;
 
-  // ---------- Supabase 客户端 ----------
-  var sb = null;
-  try {
-    sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
-  } catch(e){ sb = null; }
+// 云端客户端（Supabase）。Mac 本地服务仍在跑，本地库作为兜底；优先云端。
+let SB = null;
+try { SB = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY); } catch(e){ SB = null; }
 
-  var state = { emotion:"", acted:false };
-  var rows = [];   // 云端返回的数组
 
-  function nowLocal(){
-    var d = new Date();
-    function p(n){ return (n<10?"0":"")+n; }
-    return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+"T"+p(d.getHours())+":"+p(d.getMinutes());
-  }
-  function todayKey(){
-    var d = new Date();
-    function p(n){ return (n<10?"0":"")+n; }
-    return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());
-  }
-  function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
-
-  function setMsg(text, cls){
-    var m = document.getElementById("msg");
-    m.textContent = text; m.className = "msg " + (cls||"");
-  }
-  function setStatus(kind, text){
-    var el = document.getElementById("netStatus");
-    el.textContent = text || "—";
-    el.className = "pill" + (kind==="on" ? " on" : kind==="off" ? " off" : kind==="warn" ? " warn" : "");
-  }
-
-  function buildChips(){
-    var box = document.getElementById("emotions");
-    EMOTIONS.forEach(function(e){
-      var s = document.createElement("span");
-      s.className = "chip"; s.textContent = e;
-      s.onclick = function(){
-        state.emotion = e;
-        Array.prototype.forEach.call(box.children, function(c){ c.className = "chip"; });
-        s.className = "chip on";
-      };
-      box.appendChild(s);
-    });
-  }
-  function fillSelect(id, arr){
-    var sel = document.getElementById(id);
-    arr.forEach(function(v){
-      var o = document.createElement("option");
-      o.value = v; o.textContent = v === "" ? "—" : v;
-      sel.appendChild(o);
-    });
-  }
-
-  // ---------- 云端读取 ----------
-  function loadCloud(){
-    if(!sb){ setStatus("off","未连接云端"); showCloudWarn("Supabase 客户端未加载，请检查网络后刷新页面。"); return Promise.resolve(); }
-    setStatus("warn","读取中…");
-    return sb.from("mood_log").select("*").order("ts", { ascending:false }).limit(2000)
-      .then(function(res){
-        if(res.error){ setStatus("off","云端读取失败"); showCloudWarn("读取失败：" + res.error.message); return; }
-        rows = res.data || [];
-        document.getElementById("cloudCount").textContent = rows.length;
-        setStatus("on","云端已连接 ✓");
-        hideCloudWarn();
-        render();
-      })
-      .catch(function(err){
-        setStatus("off","无法连接云端");
-        showCloudWarn("无法连接：" + (err && err.message ? err.message : err) + "。检查网络后点「刷新」。");
-      });
-  }
-
-  function showCloudWarn(t){
-    document.getElementById("cloudWarn").style.display = "block";
-    document.getElementById("cloudWarnMsg").textContent = t;
-  }
-  function hideCloudWarn(){ document.getElementById("cloudWarn").style.display = "none"; }
-
-  // ---------- 渲染 ----------
-  function render(){
-    var rl = document.getElementById("recentList");
-    rl.innerHTML = "";
-    rows.forEach(function(m){
-      var div = document.createElement("div");
-      div.className = "item";
-      var actedCls = m.acted ? "bad" : "good";
-      var actedTxt = m.acted ? "按情绪操作" : "忍住未动";
-      var meta = [];
-      if(m.trigger) meta.push("触发:"+m.trigger);
-      if(m.urge) meta.push("冲动:"+m.urge);
-      if(m.position_pct!=null) meta.push("仓"+m.position_pct+"%");
-      if(m.pnl_pct!=null) meta.push("浮"+(m.pnl_pct>0?"+":"")+m.pnl_pct+"%");
-      div.innerHTML = '<div class="top"><span class="em">'+esc(m.emotion||"")+
-        ' <span class="'+actedCls+'">'+actedTxt+'</span></span>'+
-        '<span class="meta">'+(m.ts||"")+'</span></div>'+
-        (meta.length?'<div class="meta">'+esc(meta.join(" · "))+'</div>':'');
-      rl.appendChild(div);
-    });
-  }
-
-  // ---------- 保存（直接写云端） ----------
-  function save(){
-    var ts = document.getElementById("ts").value;
-    if(!ts){ setMsg("请填写时间", "err"); return; }
-    if(!state.emotion){ setMsg("请选一个情绪", "err"); return; }
-    var payload = {
-      ts: ts,
-      date: (ts||"").slice(0,10),
-      emotion: state.emotion,
-      intensity: Number(document.getElementById("intensity").value) || 0,
-      trigger: document.getElementById("trigger").value || "",
-      urge: document.getElementById("urge").value || "",
-      position_pct: (document.getElementById("position_pct").value === "") ? null : Number(document.getElementById("position_pct").value),
-      pnl_pct: (document.getElementById("pnl_pct").value === "") ? null : Number(document.getElementById("pnl_pct").value),
-      plan: document.getElementById("plan").value || "",
-      acted: state.acted ? 1 : 0,
-      note: (document.getElementById("note").value || "").trim(),
-      local_id: Date.now().toString(36) + Math.random().toString(36).slice(2,8)
+createApp({
+  data() {
+    return {
+      phases: [
+        ["冰点期","up"],["震荡反弹","up"],["板块赛马","mid"],["主线确立","up"],["分歧一致","up"],
+        ["高潮期","up"],["见顶期","up"],["下跌加速","down"],["恐慌期","down"],["抄底失败","down"],
+      ],
+      activeTab: "daily",
+      today: "", date: "",
+      cyclePhase: "", sentiment: 50, position: "", note: "", review: "", mistake: "",
+      saveMsg: "", saveMsgCls: "",
+      days: [],
+      tradeForm: { name:"", code:"", sector:"", openDate:"", openPrice:"", shares:"",
+                   position:"", strategy:"打板", emotion:"", reason:"" },
+      openShotMin: null, openShotK: null,
+      stocks: [], nameOpen: false, codeOpen: false,
+      tradeMsg: "开仓时自动带上当日周期阶段",
+      trades: [], sectors: [],
+      stats: null,
+      qrSrc: "", lanUrl: "获取中…",
+      apiStatus: "连接中…", apiOk: false,
+      modal: {
+        close:   { show:false, tid:0, name:"", date:"", price:"", reason:"止盈", emotion:"", summary:"" },
+        delDay:  { show:false, date:"" },
+        delTrade:{ show:false, tid:0 },
+        detail:  { tid:null },
+        shot:    { tid:null, minFile:null, kFile:null },
+        confirm: { show:false, title:"", msg:"", action:"" },
+      },
+      pending: { tid:0, kind:"" },
+      lightboxSrc: "",
+      moods: [],
+      moodSource: "cloud",
+      moodMsg: "", moodMsgCls: "",
+      moodEmotions: ["冷静","犹豫","恐踏空","贪婪","恐慌","后悔","兴奋","麻木"],
+      moodTriggers: ["大盘拉升","大盘跳水","持仓拉升","持仓跳水","横盘无聊","看到利好消息","看到利空消息","空仓焦虑","其他"],
+      moodUrges:    ["想买","想加仓","想卖","想割肉","想观望"],
+      moodPlans:    ["持有","加仓","减仓","清仓","开新仓","空仓等待","其他"],
+      moodForm: { ts:"", emotion:"", intensity:3, trigger:"", urge:"",
+                  position_pct:"", pnl_pct:"", plan:"", acted:false, note:"" },
     };
+  },
 
-    if(!sb){
-      setMsg("未连接云端，无法保存。请刷新页面重试。", "err");
-      return;
-    }
-    setMsg("保存中…", "info");
-    sb.from("mood_log").insert(payload).then(function(res){
-      if(res.error){ setMsg("保存失败：" + res.error.message, "err"); return; }
-      setMsg("已保存到云端 ✓", "ok");
-      resetForm();
-      loadCloud();   // 重新拉取最新列表
-    }).catch(function(err){
-      setMsg("保存失败：" + (err && err.message ? err.message : err), "err");
-    });
-  }
+  computed: {
+    openTrades()  { return this.trades.filter(t => t.status === "open"); },
+    closedTrades(){ return this.trades.filter(t => t.status === "closed"); },
+    detailTrade() { return this.trades.find(t => t.id === this.modal.detail.tid) || null; },
+    shotTrade()   { return this.trades.find(t => t.id === this.modal.shot.tid) || null; },
+    statCards() {
+      if (!this.stats || !this.stats.overall.count) return [];
+      const o = this.stats.overall, f = this.moneyWan;
+      return [
+        { k:"胜率",     v:o.win_rate + "%",                 cls:o.win_rate >= 50 ? "up" : "down" },
+        { k:"总盈亏",   v:f(o.total_pnl),                   cls:o.total_pnl > 0 ? "up" : "down" },
+        { k:"盈亏比",   v:o.profit_ratio != null ? o.profit_ratio : "—", cls:"" },
+        { k:"单笔期望", v:f(o.expectancy),                  cls:o.expectancy > 0 ? "up" : "down" },
+        { k:"平均盈利", v:f(o.avg_win),                     cls:"up" },
+        { k:"平均亏损", v:f(o.avg_loss),                    cls:"down" },
+        { k:"最大连亏", v:o.max_loss_streak + " 笔",        cls:"" },
+        { k:"最大连盈", v:o.max_win_streak + " 笔",         cls:"" },
+      ];
+    },
+    statNote() {
+      if (!this.stats) return "";
+      const o = this.stats.overall, open = this.stats.open_count;
+      if (!o.count) return `持仓中 ${open} 笔 · 平仓后自动统计（已了结 0 笔）`;
+      return `持仓中 ${open} 笔 · 已了结 ${o.count} 笔`;
+    },
+    breakdowns() {
+      if (!this.stats) return [];
+      return [
+        { title:"按周期阶段", key:"阶段", rows:this.stats.by_cycle },
+        { title:"按策略",     key:"策略", rows:this.stats.by_strategy },
+        { title:"按题材",     key:"题材", rows:this.stats.by_sector },
+        { title:"按开仓情绪", key:"情绪", rows:this.stats.by_emotion },
+        { title:"按平仓心态", key:"心态", rows:this.stats.by_close_emotion },
+        { title:"按持仓天数", key:"天数", rows:this.stats.by_hold },
+        { title:"按出场原因", key:"原因", rows:this.stats.by_close_reason },
+      ].filter(b => b.rows && b.rows.length);
+    },
+    months() {
+      if (!this.stats) return [];
+      return this.stats.monthly.map(m => ({
+        month:m.month, count:m.count,
+        winRate: Math.round(m.win_count / m.count * 100),
+        pnl:m.pnl,
+      }));
+    },
+    /* 股票联想：名称框按 中文名/拼音首字母/代码 匹配 */
+    nameMatches() {
+      const q = (this.tradeForm.name || "").trim().toLowerCase();
+      if (!q || !this.stocks.length) return [];
+      const out = [];
+      for (const s of this.stocks) {
+        if (s.name.toLowerCase().includes(q) || s.initials.toLowerCase().includes(q) || s.code.includes(q)) {
+          out.push(s);
+          if (out.length >= 20) break;
+        }
+      }
+      return out;
+    },
+    /* 代码框按代码前缀匹配 */
+    codeMatches() {
+      const q = (this.tradeForm.code || "").trim();
+      if (!q || !this.stocks.length) return [];
+      const out = [];
+      for (const s of this.stocks) {
+        if (s.code.startsWith(q)) { out.push(s); if (out.length >= 20) break; }
+      }
+      return out;
+    },
 
-  function resetForm(){
-    state.emotion = "";
-    Array.prototype.forEach.call(document.getElementById("emotions").children, function(c){ c.className = "chip"; });
-    document.getElementById("intensity").value = 3;
-    document.getElementById("intensityVal").textContent = 3;
-    document.getElementById("position_pct").value = "";
-    document.getElementById("pnl_pct").value = "";
-    document.getElementById("trigger").value = "";
-    document.getElementById("urge").value = "";
-    document.getElementById("plan").value = "";
-    document.getElementById("actedTrue").className = "";
-    document.getElementById("actedFalse").className = "on";
-    state.acted = false;
-    document.getElementById("note").value = "";
-    document.getElementById("ts").value = nowLocal();
-  }
+    /* ---------- 盯盘情绪 一览 ---------- */
+    mood7d() {
+      if (!this.moods.length) return 0;
+      const cut = this.daysAgo(6);
+      return this.moods.filter(m => m.date >= cut).length;
+    },
+    moodActedRate() {
+      if (!this.moods.length) return 0;
+      const acted = this.moods.filter(m => m.acted).length;
+      return Math.round(acted / this.moods.length * 100);
+    },
+    moodByEmotion() {
+      const cnt = {};
+      this.moods.forEach(m => { cnt[m.emotion] = (cnt[m.emotion] || 0) + 1; });
+      const arr = Object.entries(cnt).map(([label, count]) => ({ label, count }));
+      arr.sort((a, b) => b.count - a.count);
+      const max = arr.length ? arr[0].count : 1;
+      return arr.map(a => ({ ...a, pct: Math.round(a.count / max * 100) }));
+    },
+    moodActedByEmotion() {
+      const agg = {};
+      this.moods.forEach(m => {
+        if (!m.emotion) return;
+        const a = agg[m.emotion] || (agg[m.emotion] = { count:0, acted:0 });
+        a.count++; if (m.acted) a.acted++;
+      });
+      const arr = Object.entries(agg).map(([label, v]) => ({
+        label, count:v.count, acted:v.acted, pct: Math.round(v.acted / v.count * 100)
+      }));
+      arr.sort((a, b) => b.pct - a.pct);
+      return arr;
+    },
+    moodByHour() {
+      const cnt = {};
+      this.moods.forEach(m => {
+        const h = (m.ts || "").slice(11, 13);
+        if (h) cnt[h] = (cnt[h] || 0) + 1;
+      });
+      const arr = Object.keys(cnt).sort().map(h => ({ label: h + ":00", count: cnt[h] }));
+      const max = arr.length ? Math.max(...arr.map(a => a.count)) : 1;
+      return arr.map(a => ({ ...a, pct: Math.round(a.count / max * 100) }));
+    },
+    moodsByDate() {
+      const groups = {};
+      this.moods.forEach(m => { (groups[m.date] = groups[m.date] || []).push(m); });
+      return Object.keys(groups).sort().reverse().map(date => ({ date, items: groups[date] }));
+    },
+  },
 
-  // ---------- 导出备份（本地 JSON，手动兜底） ----------
-  function exportJSON(){
-    if(!rows.length){ setMsg("云端还没有记录可导出", "info"); return; }
-    var blob = new Blob([JSON.stringify(rows, null, 2)], { type:"application/json" });
-    var a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "mood-backup-" + todayKey() + ".json";
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setMsg("已导出 " + rows.length + " 条（云端备份）", "info");
-  }
+  methods: {
+    /* ---------- 工具 ---------- */
+    pnlClass(v) { return v > 0 ? "up" : v < 0 ? "down" : ""; },
+    moneyK(v) { return (v > 0 ? "+" : "") + (v / 1000).toFixed(1) + "k"; },
+    moneyWan(v){ return (v > 0 ? "+" : "") + (v / 10000).toFixed(2) + "万"; },
+    shotCount(t) { return (t.shot_min ? 1 : 0) + (t.shot_k ? 1 : 0); },
+    async postShot(tid, kind, file) {
+      const fd = new FormData(); fd.append("file", file);
+      return fetch(`/api/trades/${tid}/shot?kind=${kind}`, { method:"POST", body:fd });
+    },
 
-  // ---------- 初始化 ----------
-  document.addEventListener("DOMContentLoaded", function(){
-    document.getElementById("ts").value = nowLocal();
-    buildChips();
-    fillSelect("trigger", TRIGGERS);
-    fillSelect("urge", URGES);
-    fillSelect("plan", PLANS);
-    document.getElementById("intensity").oninput = function(){ document.getElementById("intensityVal").textContent = this.value; };
-    document.getElementById("actedTrue").onclick = function(){ state.acted = true; this.className="on"; document.getElementById("actedFalse").className=""; };
-    document.getElementById("actedFalse").onclick = function(){ state.acted = false; this.className="on"; document.getElementById("actedTrue").className=""; };
+    /* ---------- Tab ---------- */
+    switchTab(name) {
+      this.activeTab = name;
+      if (name === "stats") this.loadStats();
+      if (name === "trades") this.loadTrades();
+      if (name === "mood") this.loadMoods();
+    },
 
-    document.getElementById("saveBtn").onclick = save;
-    document.getElementById("refreshBtn").onclick = function(){ loadCloud(); };
-    document.getElementById("exportBtn").onclick = exportJSON;
+    /* ---------- 每日复盘 ---------- */
+    togglePhase(name) { this.cyclePhase = this.cyclePhase === name ? "" : name; },
+    async loadDay(date) {
+      this.date = date;
+      let day = null;
+      const res = await fetch(`/api/days/${date}`);
+      if (res.ok) day = await res.json();
+      const m = (day && day.manual) || {};
+      this.cyclePhase = m.cycle_phase || "";
+      this.sentiment  = (m.sentiment && m.sentiment.score != null) ? m.sentiment.score : 50;
+      this.position   = (m.position && m.position.total != null) ? m.position.total : "";
+      this.note    = m.note || "";
+      this.review  = m.review || "";
+      this.mistake = m.mistake || "";
+      this.saveMsg = ""; this.saveMsgCls = "";
+    },
+    async saveDay() {
+      if (!this.cyclePhase) { this.saveMsg = "请先点选周期阶段"; this.saveMsgCls = "err"; return; }
+      const manual = {
+        cycle_phase: this.cyclePhase,
+        sentiment: { score: this.sentiment },
+        position: { total: (this.position === "" || this.position == null) ? null : Number(this.position) },
+        note: this.note.trim(),
+        review: this.review.trim(),
+        mistake: this.mistake.trim(),
+      };
+      const r = await fetch(`/api/days/${this.date}`, {
+        method:"PUT", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ manual }),
+      });
+      if (r.ok) {
+        this.saveMsg = `已保存 ${this.date}`; this.saveMsgCls = "ok";
+        await this.loadDays(); await this.loadTrades();
+      } else { this.saveMsg = "保存失败"; this.saveMsgCls = "err"; }
+    },
+    async loadDays() { this.days = await (await fetch("/api/days")).json(); },
+    openDelDay(date) { this.modal.delDay = { show:true, date }; },
+    async confirmDelDay() {
+      await fetch(`/api/days/${this.modal.delDay.date}`, { method:"DELETE" });
+      this.modal.delDay.show = false; this.loadDays();
+    },
 
-    loadCloud();
+    /* ---------- 股票联想 ---------- */
+    async loadStocks() {
+      try { this.stocks = await (await fetch("/api/stocks")).json(); }
+      catch (e) { this.stocks = []; }
+    },
+    pickStock(s) {
+      this.tradeForm.name = s.name;
+      this.tradeForm.code = s.code;
+      this.nameOpen = false; this.codeOpen = false;
+    },
+    onCodeInput() {
+      this.codeOpen = true;
+      // 唯一匹配时反向自动带出名称
+      if (this.codeMatches.length === 1) this.tradeForm.name = this.codeMatches[0].name;
+    },
+    blurStock() {
+      setTimeout(() => { this.nameOpen = false; this.codeOpen = false; }, 150);
+    },
 
-    // 注册 Service Worker（离线打开页面外壳；数据本身依赖云端）
-    if("serviceWorker" in navigator){
-      navigator.serviceWorker.register("/sw.js").catch(function(){});
-    }
-  });
+    /* ---------- 盯盘情绪 ---------- */
+    daysAgo(n) {
+      const d = new Date(); d.setDate(d.getDate() - n);
+      const p = x => String(x).padStart(2, "0");
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    },
+    nowDtLocal() {
+      const d = new Date();
+      const p = x => String(x).padStart(2, "0");
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+    },
+    async loadMoods() {
+      if (SB) {
+        try {
+          const res = await SB.from("mood_log").select("*").order("ts", { ascending:false }).limit(2000);
+          if (!res.error) { this.moods = res.data || []; this.moodSource = "cloud"; return; }
+        } catch(e) {}
+      }
+      // 兜底：本地服务
+      try { this.moods = await (await fetch("/api/moods")).json(); this.moodSource = "local"; }
+      catch (e) { this.moods = []; this.moodSource = "offline"; }
+    },
+    async addMood() {
+      const f = this.moodForm;
+      if (!f.emotion) { this.moodMsg = "先选一个情绪"; this.moodMsgCls = "err"; return; }
+      const ts = (f.ts || this.nowDtLocal()).replace("T", " ");
+      const body = {
+        ts, date: (ts||"").slice(0,10), emotion: f.emotion, intensity: Number(f.intensity) || 0,
+        trigger: f.trigger || "", urge: f.urge || "",
+        position_pct: (f.position_pct === "" || f.position_pct == null) ? null : Number(f.position_pct),
+        pnl_pct: (f.pnl_pct === "" || f.pnl_pct == null) ? null : Number(f.pnl_pct),
+        plan: f.plan || "", acted: f.acted ? 1 : 0, note: (f.note || "").trim(),
+        local_id: Date.now().toString(36) + Math.random().toString(36).slice(2,8),
+      };
+      if (SB) {
+        const res = await SB.from("mood_log").insert(body);
+        if (!res.error) {
+          this.moodForm = { ts: this.nowDtLocal(), emotion: "", intensity: 3, trigger: "", urge: "",
+                            position_pct: "", pnl_pct: "", plan: "", acted: false, note: "" };
+          this.moodMsg = "已记录（云端）"; this.moodMsgCls = "ok";
+          await this.loadMoods();
+          return;
+        }
+        this.moodMsg = "云端保存失败：" + res.error.message; this.moodMsgCls = "err";
+        return;
+      }
+      // 兜底：本地服务
+      const r = await fetch("/api/moods", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      });
+      if (r.ok) {
+        this.moodForm = { ts: this.nowDtLocal(), emotion: "", intensity: 3, trigger: "", urge: "",
+                          position_pct: "", pnl_pct: "", plan: "", acted: false, note: "" };
+        this.moodMsg = "已记录（本地）"; this.moodMsgCls = "ok";
+        await this.loadMoods();
+      } else { this.moodMsg = "保存失败：" + await r.text(); this.moodMsgCls = "err"; }
+    },
+    async deleteMood(id) {
+      if (SB) {
+        const res = await SB.from("mood_log").delete().eq("id", id);
+        if (!res.error) { await this.loadMoods(); return; }
+      }
+      await fetch(`/api/moods/${id}`, { method: "DELETE" });
+      await this.loadMoods();
+    },
+    async importMoodFile(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const arr = JSON.parse(text);
+        if (!Array.isArray(arr)) throw new Error("文件格式不对，应为数组");
+        // 兼容两种格式：[{localId,payload}] 或 [row]
+        const rows = arr.map(function(x){
+          const p = x.payload || x;
+          return {
+            ts: p.ts, date: (p.ts||"").slice(0,10), emotion: p.emotion, intensity: p.intensity||0,
+            trigger: p.trigger||"", urge: p.urge||"",
+            position_pct: p.position_pct==null?null:p.position_pct,
+            pnl_pct: p.pnl_pct==null?null:p.pnl_pct,
+            plan: p.plan||"", acted: p.acted?1:0, note: p.note||"",
+            local_id: p.local_id || (x.localId) || (Date.now().toString(36)+Math.random().toString(36).slice(2,8)),
+          };
+        });
+        if (SB) {
+          const res = await SB.from("mood_log").insert(rows);
+          if (!res.error) {
+            this.moodMsg = `导入完成：写入 ${rows.length} 条到云端`; this.moodMsgCls = "ok";
+            await this.loadMoods(); e.target.value = ""; return;
+          }
+          this.moodMsg = "云端导入失败：" + res.error.message; this.moodMsgCls = "err"; e.target.value=""; return;
+        }
+        const r = await fetch("/api/moods/import", {
+          method:"POST", headers:{ "Content-Type":"application/json" },
+          body: JSON.stringify(arr),
+        });
+        if (r.ok) {
+          const res = await r.json();
+          this.moodMsg = `导入完成：新增 ${res.inserted} 条，跳过重复 ${res.skipped} 条`;
+          this.moodMsgCls = "ok";
+          await this.loadMoods();
+        } else {
+          this.moodMsg = "导入失败：" + await r.text(); this.moodMsgCls = "err";
+        }
+      } catch (err) {
+        this.moodMsg = "导入失败：" + err.message; this.moodMsgCls = "err";
+      } finally {
+        e.target.value = "";
+      }
+    },
+
+    /* ---------- 交易记录 ---------- */
+    onOpenShotMin(e) { this.openShotMin = e.target.files[0]; },
+    onOpenShotK(e)  { this.openShotK = e.target.files[0]; },
+    async addTrade() {
+      const t = this.tradeForm;
+      if (!t.name || !t.openDate || !(t.openPrice > 0) || !(t.shares > 0)) {
+        this.tradeMsg = "名称、日期、开仓价、股数必填"; return;
+      }
+      const r = await fetch("/api/trades", {
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({
+          stock_name:t.name, stock_code:t.code, sector:t.sector, open_date:t.openDate,
+          open_price:Number(t.openPrice), shares:Number(t.shares),
+          position_pct:(t.position === "" || t.position == null) ? null : Number(t.position),
+          strategy:t.strategy, emotion:t.emotion, open_reason:t.reason,
+        }),
+      });
+      if (r.ok) {
+        const created = await r.json();
+        if (this.openShotMin) await this.postShot(created.id, "min", this.openShotMin);
+        if (this.openShotK)  await this.postShot(created.id, "k", this.openShotK);
+        this.tradeForm = { name:"", code:"", sector:"", openDate:this.today, openPrice:"",
+                           shares:"", position:"", strategy:"打板", emotion:"", reason:"" };
+        this.openShotMin = null; this.openShotK = null;
+        this.tradeMsg = (this.openShotMin || this.openShotK) ? "已记录开仓（含截图）" : "已记录开仓";
+        await this.loadTrades();
+      } else { this.tradeMsg = "保存失败：" + await r.text(); }
+    },
+    openClose(t) {
+      this.modal.close = { show:true, tid:t.id, name:t.stock_name, date:this.date,
+                           price:"", reason:"止盈", emotion:"", summary:"" };
+    },
+    async doClose() {
+      const c = this.modal.close;
+      if (!c.date || !(c.price > 0)) { alert("平仓日期和价格必填"); return; }
+      const r = await fetch(`/api/trades/${c.tid}/close`, {
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ close_date:c.date, close_price:Number(c.price),
+          close_reason:c.reason, close_summary:c.summary.trim(), close_emotion:c.emotion }),
+      });
+      if (r.ok) { this.modal.close.show = false; this.loadTrades(); }
+    },
+    openDelTrade(tid) { this.modal.delTrade = { show:true, tid }; },
+    async confirmDelTrade() {
+      await fetch(`/api/trades/${this.modal.delTrade.tid}`, { method:"DELETE" });
+      this.modal.delTrade.show = false; this.loadTrades();
+    },
+    reopen(tid) { this.pending = { tid, kind:"" }; this.askConfirm("撤销平仓", "重新变为持仓中？", "reopen"); },
+    async doReopen() { await fetch(`/api/trades/${this.pending.tid}/reopen`, { method:"POST" }); this.loadTrades(); },
+    openDetail(tid) { this.modal.detail.tid = tid; },
+    closeDetail() { this.modal.detail.tid = null; },
+    openShot(tid) { this.modal.shot = { tid, minFile:null, kFile:null }; },
+    onShotFile(e, kind) {
+      if (kind === "min") this.modal.shot.minFile = e.target.files[0];
+      else this.modal.shot.kFile = e.target.files[0];
+    },
+    async uploadShot(kind) {
+      const s = this.modal.shot;
+      const f = kind === "min" ? s.minFile : s.kFile;
+      if (!f) { alert("先选择一张图片"); return; }
+      const r = await this.postShot(s.tid, kind, f);
+      if (r.ok) { await this.loadTrades(); this.openShot(s.tid); }
+      else alert("上传失败：" + await r.text());
+    },
+    removeShot(tid, kind) { this.pending = { tid, kind }; this.askConfirm("删除截图", "删除这张截图？", "rmShot"); },
+    async doRemoveShot() {
+      const { tid, kind } = this.pending;
+      await fetch(`/api/trades/${tid}/shot?kind=${kind}`, { method:"DELETE" });
+      await this.loadTrades(); this.openShot(tid);
+    },
+    askConfirm(title, msg, action) { this.modal.confirm = { show:true, title, msg, action }; },
+    confirmOK() {
+      const a = this.modal.confirm.action;
+      if (a === "reopen") this.doReopen();
+      else if (a === "rmShot") this.doRemoveShot();
+      this.modal.confirm.show = false;
+    },
+    lightbox(src) { this.lightboxSrc = src; },
+
+    async loadTrades() {
+      const trades = await (await fetch("/api/trades")).json();
+      this.trades = trades;
+      this.sectors = [...new Set(trades.map(t => t.sector).filter(Boolean))];
+    },
+
+    /* ---------- 胜率统计 ---------- */
+    async loadStats() { this.stats = await (await fetch("/api/stats")).json(); },
+
+    /* ---------- 启动 ---------- */
+    onDateChange() { if (this.date) this.loadDay(this.date); },
+    async mounted() {
+      const today = new Date().toISOString().slice(0, 10);
+      this.today = today; this.date = today;
+      this.tradeForm.openDate = today;
+      try {
+        const r = await fetch("/api/qrcode");
+        this.qrSrc = "/api/qrcode?t=" + Date.now();
+        const u = r.headers.get("X-Lan-Url");
+        if (u) this.lanUrl = u;
+      } catch (e) { this.lanUrl = "获取失败"; }
+      try {
+        await (await fetch("/api/health")).json();
+        this.apiStatus = "服务正常"; this.apiOk = true;
+        await this.loadStocks();
+        await this.loadDay(this.date);
+        await this.loadDays();
+        await this.loadTrades();
+        await this.loadMoods();
+        this.moodForm.ts = this.nowDtLocal();
+      } catch (e) { this.apiStatus = "API 连接失败"; }
+    },
+  },
+
+  mounted() { this.mounted(); },
+}).mount("#app");
 </script>
 </body>
 </html>
