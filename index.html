@@ -826,9 +826,16 @@ createApp({
     moneyK(v) { return (v > 0 ? "+" : "") + (v / 1000).toFixed(1) + "k"; },
     moneyWan(v){ return (v > 0 ? "+" : "") + (v / 10000).toFixed(2) + "万"; },
     shotCount(t) { return (t.shot_min ? 1 : 0) + (t.shot_k ? 1 : 0); },
+    shotPath(tid, kind) { return `${tid}_${kind}.jpg`; },
+    shotUrl(path) { return path ? `${window.SUPABASE_URL}/storage/v1/object/public/trade-shots/${path}` : ""; },
     async postShot(tid, kind, file) {
-      const fd = new FormData(); fd.append("file", file);
-      return fetch(`/api/trades/${tid}/shot?kind=${kind}`, { method:"POST", body:fd });
+      if (!SB) return;
+      const path = this.shotPath(tid, kind);
+      const { error } = await SB.storage.from("trade-shots").upload(path, file, { upsert:true, contentType:file.type || "image/jpeg" });
+      if (error) { console.error("upload shot fail", error); return; }
+      const url = this.shotUrl(path);
+      const col = kind === "min" ? "shot_min" : "shot_k";
+      await SB.from("trades").update({ [col]: url, updated_at:new Date().toISOString() }).eq("id", tid);
     },
 
     /* ---------- Tab ---------- */
@@ -844,8 +851,10 @@ createApp({
     async loadDay(date) {
       this.date = date;
       let day = null;
-      const res = await fetch(`/api/days/${date}`);
-      if (res.ok) day = await res.json();
+      if (SB) {
+        const res = await SB.from("daily_records").select("*").eq("date", date).maybeSingle();
+        if (res.data) day = { manual: res.data.manual_json ? JSON.parse(res.data.manual_json) : {} };
+      }
       const m = (day && day.manual) || {};
       this.cyclePhase = m.cycle_phase || "";
       this.sentiment  = (m.sentiment && m.sentiment.score != null) ? m.sentiment.score : 50;
@@ -865,19 +874,26 @@ createApp({
         review: this.review.trim(),
         mistake: this.mistake.trim(),
       };
-      const r = await fetch(`/api/days/${this.date}`, {
-        method:"PUT", headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ manual }),
-      });
-      if (r.ok) {
+      if (!SB) { this.saveMsg = "未连接云端"; this.saveMsgCls = "err"; return; }
+      const now = new Date().toISOString();
+      const { error } = await SB.from("daily_records").upsert({
+        date: this.date, manual_json: JSON.stringify(manual),
+        updated_at: now, created_at: now,
+      }, { onConflict: "date" });
+      if (!error) {
         this.saveMsg = `已保存 ${this.date}`; this.saveMsgCls = "ok";
         await this.loadDays(); await this.loadTrades();
-      } else { this.saveMsg = "保存失败"; this.saveMsgCls = "err"; }
+      } else { this.saveMsg = "保存失败：" + (error.message || ""); this.saveMsgCls = "err"; }
     },
-    async loadDays() { this.days = await (await fetch("/api/days")).json(); },
+    async loadDays() {
+      if (SB) {
+        const res = await SB.from("daily_records").select("date,updated_at").order("date", { ascending:false });
+        this.days = (res.data || []).map(d => ({ date:d.date, updated_at:d.updated_at }));
+      }
+    },
     openDelDay(date) { this.modal.delDay = { show:true, date }; },
     async confirmDelDay() {
-      await fetch(`/api/days/${this.modal.delDay.date}`, { method:"DELETE" });
+      if (SB) await SB.from("daily_records").delete().eq("date", this.modal.delDay.date);
       this.modal.delDay.show = false; this.loadDays();
     },
 
@@ -1110,13 +1126,21 @@ createApp({
       const f = kind === "min" ? s.minFile : s.kFile;
       if (!f) { alert("先选择一张图片"); return; }
       const r = await this.postShot(s.tid, kind, f);
-      if (r.ok) { await this.loadTrades(); this.openShot(s.tid); }
-      else alert("上传失败：" + await r.text());
+      if (r !== false) { await this.loadTrades(); this.openShot(s.tid); }
     },
     removeShot(tid, kind) { this.pending = { tid, kind }; this.askConfirm("删除截图", "删除这张截图？", "rmShot"); },
     async doRemoveShot() {
       const { tid, kind } = this.pending;
-      await fetch(`/api/trades/${tid}/shot?kind=${kind}`, { method:"DELETE" });
+      if (SB) {
+        const t = this.trades.find(x => x.id === tid);
+        const path = t && (kind === "min" ? t.shot_min : t.shot_k);
+        if (path) {
+          const fname = path.split("/").pop();
+          await SB.storage.from("trade-shots").remove([fname]);
+        }
+        const col = kind === "min" ? "shot_min" : "shot_k";
+        await SB.from("trades").update({ [col]: null, updated_at:new Date().toISOString() }).eq("id", tid);
+      }
       await this.loadTrades(); this.openShot(tid);
     },
     askConfirm(title, msg, action) { this.modal.confirm = { show:true, title, msg, action }; },
@@ -1163,18 +1187,18 @@ createApp({
         const u = r.headers.get("X-Lan-Url");
         if (u) this.lanUrl = u;
       } catch (e) { this.lanUrl = "获取失败"; }
-      // 今日复盘 / 股票 / 统计：优先本地服务，失败不影响云端数据
+      // 本地辅助功能（股票联想/统计/二维码）：有本地服务才用
       try {
         await (await fetch("/api/health")).json();
         this.apiStatus = "本地服务正常"; this.apiOk = true;
         await this.loadStocks();
-        await this.loadDay(this.date);
-        await this.loadDays();
         await this.loadStats();
       } catch (e) {
         this.apiStatus = SB ? "云端模式（无本地服务）" : "离线";
       }
-      // 交易记录 + 盯盘情绪：始终优先云端
+      // 云端数据：每日复盘 / 交易记录 / 盯盘情绪，始终加载
+      await this.loadDays();
+      await this.loadDay(this.date);
       await this.loadTrades();
       await this.loadMoods();
       this.moodForm.ts = this.nowDtLocal();
