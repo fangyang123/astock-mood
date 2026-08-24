@@ -1157,13 +1157,19 @@ createApp({
     },
     openClose(t) {
       this.modal.close = { show:true, tid:t.id, name:t.stock_name, date:this.date,
-                           price:"", reason:"止盈", emotion:"", summary:"" };
+                           price:"", reason:"止盈", emotion:"", summary:"",
+                           openPrice:Number(t.open_price), shares:Number(t.shares) };
     },
     async doClose() {
       const c = this.modal.close;
       if (!c.date || !(c.price > 0)) { alert("平仓日期和价格必填"); return; }
-      const body = { close_date:c.date, close_price:Number(c.price),
+      // 客户端计算盈亏额 / 盈亏%（之前云端平仓漏算，导致列空白）
+      const openP = Number(c.openPrice) || 0, sh = Number(c.shares) || 0, closeP = Number(c.price);
+      const pnl = Math.round((closeP - openP) * sh * 100) / 100;
+      const pnlPct = openP > 0 ? Math.round((closeP - openP) / openP * 100 * 100) / 100 : 0;
+      const body = { close_date:c.date, close_price:closeP,
         close_reason:c.reason, close_summary:c.summary.trim(), close_emotion:c.emotion,
+        pnl, pnl_pct:pnlPct,
         status:"closed", updated_at:new Date().toISOString() };
       if (SB) {
         const res = await SB.from("trades").update(body).eq("id", c.tid);
