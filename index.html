@@ -368,7 +368,7 @@
           <td>{{ t.emotion || '—' }}<span v-if="t.close_emotion"> → {{ t.close_emotion }}</span></td>
           <td>{{ t.open_price }} → {{ t.close_price }}</td>
           <td :class="pnlClass(t.pnl)">{{ t.pnl>0 ? '+' : '' }}{{ t.pnl_pct }}%</td>
-          <td :class="pnlClass(t.pnl)">{{ t.pnl>0 ? '+' : '' }}{{ moneyK(t.pnl) }}</td>
+          <td :class="pnlClass(t.pnl)">{{ t.pnl>0 ? '+' : '' }}{{ t.pnl!=null ? t.pnl.toFixed(2)+' 元' : '—' }}</td>
           <td>{{ t.close_reason || '—' }}</td>
           <td><button @click.stop="openShot(t.id)">{{ shotCount(t) ? ('图'+shotCount(t)) : '＋图' }}</button></td>
           <td><button @click="reopen(t.id)" title="撤销平仓">↩</button>
@@ -400,7 +400,7 @@
         <tbody>
           <tr v-for="r in b.rows" :key="r.group">
             <td>{{ r.group }}</td><td>{{ r.count }}</td><td>{{ r.win_rate }}%</td>
-            <td :class="pnlClass(r.total_pnl)">{{ r.total_pnl>0 ? '+' : '' }}{{ moneyK(r.total_pnl) }}</td>
+            <td :class="pnlClass(r.total_pnl)">{{ r.total_pnl>0 ? '+' : '' }}{{ r.total_pnl!=null ? r.total_pnl.toFixed(2)+' 元' : '—' }}</td>
             <td :class="r.avg_pnl_pct>0 ? 'up' : 'down'">{{ r.avg_pnl_pct>0 ? '+' : '' }}{{ r.avg_pnl_pct }}%</td>
           </tr>
         </tbody>
