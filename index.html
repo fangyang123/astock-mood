@@ -58,16 +58,6 @@
   .add-row { justify-self:start; margin-top:2px; padding:5px 12px; border:1px dashed var(--blue);
              background:#fff; color:var(--blue); border-radius:6px; cursor:pointer; font-size:13px; }
   .add-row:hover { background:var(--blue-l); }
-  /* 板块轮动矩阵 */
-  .rot-wrap { overflow-x:auto; }
-  .rot-tbl { border-collapse:separate; border-spacing:3px; font-size:12px; }
-  .rot-tbl th { font-weight:500; color:var(--muted); font-size:11px; white-space:nowrap; }
-  .rot-sect { text-align:left; min-width:92px; padding-right:6px; color:var(--text); font-size:12px; }
-  .rot-cell { width:24px; height:18px; border-radius:4px; background:#eef0f3; }
-  .rot-cell.on { background:var(--red); }
-  .rot-cnt { padding-left:8px; color:var(--muted); text-align:left; }
-  .rot-seg { display:flex; gap:4px; margin-left:auto; }
-  .rot-seg .seg-opt { padding:3px 10px; font-size:12px; }
   /* 股票名称/代码 智能联想 */
   .ac { position:relative; }
   .ac-list { position:absolute; left:0; right:0; top:100%; margin-top:2px; z-index:50;
@@ -273,35 +263,6 @@
       </tbody>
     </table></div>
     <div class="empty" v-if="!days.length">暂无记录</div>
-  </div>
-  <div class="card">
-    <h2><span class="tag" style="background:var(--purple-l);color:var(--purple)">板块轮动</span>
-        <span class="muted" style="font-weight:400">红格＝当天在强势榜，鼠标悬停看龙头股</span>
-        <span class="rot-seg">
-          <span :class="['seg-opt', rotDays===7  ? 'on' : '']" @click="rotDays=7">7天</span>
-          <span :class="['seg-opt', rotDays===14 ? 'on' : '']" @click="rotDays=14">14天</span>
-          <span :class="['seg-opt', rotDays===30 ? 'on' : '']" @click="rotDays=30">30天</span>
-        </span>
-    </h2>
-    <div class="rot-wrap" v-if="rotation.rows.length">
-      <table class="rot-tbl">
-        <thead><tr>
-          <th class="rot-sect">板块</th>
-          <th v-for="d in rotation.dates" :key="d">{{ d.slice(5) }}</th>
-          <th class="rot-cnt">次数</th>
-        </tr></thead>
-        <tbody>
-          <tr v-for="r in rotation.rows" :key="r.sector">
-            <td class="rot-sect">{{ r.sector }}</td>
-            <td v-for="(c, i) in r.cells" :key="i">
-              <div :class="['rot-cell', c.on ? 'on' : '']" :title="c.tip"></div>
-            </td>
-            <td class="rot-cnt">{{ r.count }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="empty" v-else>这个区间还没有板块记录</div>
   </div>
 </section>
 
@@ -756,7 +717,6 @@ createApp({
       strongIndex: "", indexResonance: "", sectorRows: [{ sector:"", leading:"" }],
       saveMsg: "", saveMsgCls: "",
       days: [],
-      rotDays: 14,
       tradeForm: { name:"", code:"", sector:"", openDate:"", openPrice:"", shares:"",
                    position:"", strategy:"打板", emotion:"", reason:"" },
       openShotMin: null, openShotK: null,
@@ -789,48 +749,6 @@ createApp({
   },
 
   computed: {
-    rotation() {
-      const pad = x => String(x).padStart(2, "0");
-      const fmt = d => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
-      const dates = [];
-      const now = new Date();
-      for (let i = this.rotDays - 1; i >= 0; i--) {
-        const d = new Date(now.getTime() - i * 86400000);
-        const wd = d.getDay();
-        if (wd === 0 || wd === 6) continue;
-        dates.push(fmt(d));
-      }
-      if (!dates.length) return { dates, rows: [] };
-      const daySet = new Set(dates);
-      const byDate = {};
-      this.days.forEach(d => {
-        if (!daySet.has(d.date)) return;
-        byDate[d.date] = {};
-        (d.sectorRows || []).forEach(r => {
-          const s = (r.sector || "").trim();
-          if (s) byDate[d.date][s] = (r.leading || "").trim();
-        });
-      });
-      const meta = {};
-      dates.forEach((dt, idx) => {
-        Object.keys(byDate[dt] || {}).forEach(s => {
-          if (!meta[s]) meta[s] = { sector:s, count:0, lastIdx:idx };
-          meta[s].count++;
-          meta[s].lastIdx = idx;
-        });
-      });
-      const rows = Object.keys(meta).map(k => meta[k])
-        .sort((a, b) => b.lastIdx - a.lastIdx || b.count - a.count)
-        .map(m => ({
-          sector: m.sector, count: m.count,
-          cells: dates.map(dt => {
-            const on = !!(byDate[dt] && byDate[dt][m.sector] != null);
-            const lead = on ? byDate[dt][m.sector] : "";
-            return { on, tip: on ? dt + "  " + m.sector + (lead ? " → " + lead : "") : dt + "  未上榜" };
-          }),
-        }));
-      return { dates, rows };
-    },
     openTrades()  { return this.trades.filter(t => t.status === "open"); },
     closedTrades(){ return this.trades.filter(t => t.status === "closed"); },
     detailTrade() { return this.trades.find(t => t.id === this.modal.detail.tid) || null; },
@@ -1050,7 +968,6 @@ createApp({
             sentiment: man.sentiment && man.sentiment.score != null ? man.sentiment.score : null,
             position: man.position && man.position.total != null ? man.position.total : null,
             sectors: (man.sector_rows || []).map(r => r.sector).filter(Boolean).join(",") || "",
-            sectorRows: man.sector_rows || [],
           };
         });
       }
